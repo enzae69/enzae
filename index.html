@@ -2,60 +2,141 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Chat</title>
+  <title>Discord Chat</title>
+
   <style>
-    body { font-family: Arial; background:#f2f2f2; }
-    #chat { max-width:600px; margin:20px auto; background:#fff; padding:10px; }
-    #messages { height:300px; overflow-y:auto; border:1px solid #ccc; padding:5px; }
-    input { width:80%; padding:5px; }
-    button { width:18%; padding:5px; }
+    body {
+      margin: 0;
+      background: #2b2d31;
+      color: white;
+      font-family: Arial;
+    }
+
+    #login {
+      text-align: center;
+      margin-top: 100px;
+    }
+
+    #chat {
+      display: none;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+    }
+
+    .msg {
+      margin-bottom: 8px;
+    }
+
+    .user {
+      color: #7289da;
+      font-weight: bold;
+    }
+
+    #input {
+      display: flex;
+      padding: 10px;
+      background: #1e1f22;
+    }
+
+    input {
+      flex: 1;
+      padding: 8px;
+      background: #383a40;
+      border: none;
+      color: white;
+    }
+
+    button {
+      margin-left: 10px;
+      background: #5865f2;
+      border: none;
+      color: white;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
 <body>
-  <div id="chat">
-    <h2>🔥 Live Chat</h2>
-    <div id="messages"></div><br>
-    <input id="msg" placeholder="Nachricht eingeben">
-    <button onclick="sendMessage()">Senden</button>
+
+<div id="login">
+  <h1>🔥 Discord‑Style Chat</h1>
+  <button onclick="login()">Mit Google anmelden</button>
+</div>
+
+<div id="chat">
+  <div id="messages"></div>
+
+  <div id="input">
+    <input id="msg" placeholder="Nachricht schreiben…">
+    <button onclick="send()">Senden</button>
   </div>
+</div>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-      authDomain: "enzae-4134d.firebaseapp.com",
-      projectId: "enzae-4134d"
-    };
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+    authDomain: "enzae-4134d.firebaseapp.com",
+    projectId: "enzae-4134d"
+  };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+  firebase.initializeApp(firebaseConfig);
 
-    function sendMessage() {
-      const text = document.getElementById("msg").value;
-      if (!text) return;
+  const db = firebase.firestore();
+  const auth = firebase.auth();
 
-      db.collection("messages").add({
-        text: text,
-        time: Date.now()
-      });
+  let user = null;
 
-      document.getElementById("msg").value = "";
+  function login() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+  }
+
+  auth.onAuthStateChanged(u => {
+    if (u) {
+      user = u;
+      document.getElementById("login").style.display = "none";
+      document.getElementById("chat").style.display = "flex";
     }
+  });
 
-    db.collection("messages")
-      .orderBy("time")
-      .onSnapshot(snapshot => {
-        const box = document.getElementById("messages");
-        box.innerHTML = "";
-        snapshot.forEach(doc => {
-          box.innerHTML += "<div>💬 " + doc.data().text + "</div>";
-        });
-        box.scrollTop = box.scrollHeight;
+  function send() {
+    const text = msg.value;
+    if (!text) return;
+
+    db.collection("messages").add({
+      text: text,
+      user: user.displayName,
+      time: Date.now()
+    });
+
+    msg.value = "";
+  }
+
+  db.collection("messages")
+    .orderBy("time")
+    .onSnapshot(snap => {
+      messages.innerHTML = "";
+      snap.forEach(doc => {
+        const m = doc.data();
+        messages.innerHTML +=
+          `<div class="msg"><span class="user">${m.user}</span>: ${m.text}</div>`;
       });
-  </script>
+      messages.scrollTop = messages.scrollHeight;
+    });
+</script>
+
 </body>
 </html>
