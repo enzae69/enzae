@@ -5,7 +5,6 @@
 <title>enzae</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Firebase compat -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -13,23 +12,26 @@
 <style>
 body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
 #login{height:100vh;display:flex;justify-content:center;align-items:center}
-button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px;cursor:pointer}
-#app{display:none;height:100vh}
-.servers{width:70px;background:#1e1f22;display:flex;justify-content:center;align-items:center}
+button{background:#5865f2;border:0;color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer}
+#app{display:none;height:100vh;display:flex}
+
+.servers{width:70px;background:#1e1f22;padding:6px}
+.server{background:#313338;margin-bottom:8px;padding:10px;text-align:center;border-radius:50%;cursor:pointer}
+.server.active{background:#5865f2}
+
 .channels{width:220px;background:#2b2d31;padding:10px}
 .channel{padding:6px;border-radius:4px;cursor:pointer;color:#949ba4}
 .channel.active,.channel:hover{background:#3f4147;color:#fff}
+
 .chat{flex:1;display:flex;flex-direction:column}
 .topbar{background:#2b2d31;padding:10px;font-weight:bold}
 .messages{flex:1;padding:15px;overflow-y:auto}
 .msg{display:flex;gap:10px;margin-bottom:12px}
-.msg img{width:40px;height:40px;border-radius:50%}
+.msg img{width:36px;height:36px;border-radius:50%}
 .bubble{background:#313338;padding:8px 10px;border-radius:8px}
-.inputbar{display:flex;gap:10px;padding:10px;background:#2b2d31}
-.inputbar input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
-.members{width:180px;background:#2b2d31;padding:10px}
-.user{color:#b5bac1;margin-bottom:6px;cursor:pointer}
-.user:hover{color:#fff}
+
+.inputbar{display:flex;gap:8px;padding:10px;background:#2b2d31}
+input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
 </style>
 </head>
 
@@ -40,135 +42,148 @@ button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6p
 </div>
 
 <div id="app">
-  <div class="servers">🟣</div>
+  <div class="servers">
+    <div class="server" onclick="createServer()">＋</div>
+    <div id="serverList"></div>
+  </div>
 
   <div class="channels">
-    <h3>enzae</h3>
-    <div class="channel active" onclick="setRoom('global')"># allgemein</div>
+    <h4 id="serverName">Server</h4>
+    <div class="channel" onclick="createChannel()">＋ Channel</div>
+    <div id="channelList"></div>
   </div>
 
   <div class="chat">
-    <div class="topbar" id="roomName"># allgemein</div>
+    <div class="topbar" id="channelName"># channel</div>
     <div class="messages" id="messages"></div>
     <div class="inputbar">
-      <input id="msg" placeholder="Nachricht schreiben…">
+      <input id="msg" placeholder="Nachricht…">
       <button onclick="send()">➤</button>
     </div>
-  </div>
-
-  <div class="members">
-    <h4>Users</h4>
-    <div id="userList"></div>
   </div>
 </div>
 
 <script>
-/* DOM */
-const loginDiv = document.getElementById("login");
-const appDiv   = document.getElementById("app");
+const loginDiv=document.getElementById("login");
+const appDiv=document.getElementById("app");
 
-/* Firebase */
 firebase.initializeApp({
-  apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-  authDomain: "enzae-4134d.firebaseapp.com",
-  projectId: "enzae-4134d"
+  apiKey:"AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain:"enzae-4134d.firebaseapp.com",
+  projectId:"enzae-4134d"
 });
 
-const auth = firebase.auth();
-const db   = firebase.firestore();
-
-/* Login merken */
+const auth=firebase.auth();
+const db=firebase.firestore();
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-let me = null;
-let currentRoom = "global";
+let me=null;
+let currentServer=null;
+let currentChannel=null;
 
 /* LOGIN */
 function login(){
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e=>alert(e.message));
+  const p=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(p);
 }
 
-/* AUTH STATE */
-auth.onAuthStateChanged(user=>{
-  if(!user){
-    loginDiv.style.display="flex";
-    appDiv.style.display="none";
-    return;
-  }
-
-  me = user;
+auth.onAuthStateChanged(u=>{
+  if(!u){loginDiv.style.display="flex";appDiv.style.display="none";return;}
+  me=u;
   loginDiv.style.display="none";
   appDiv.style.display="flex";
-
-  db.collection("users").doc(user.uid).set({
-    name: user.displayName,
-    photo: user.photoURL
-  });
-
-  loadUsers();
-  loadMessages();
+  loadServers();
 });
 
-/* USERS / DMs */
-function loadUsers(){
-  db.collection("users").onSnapshot(s=>{
-    userList.innerHTML="";
-    s.forEach(d=>{
-      if(d.id===me.uid) return;
-      const u=d.data();
-      userList.innerHTML +=
-        `<div class="user" onclick="openDM('${d.id}','${u.name}')">👤 ${u.name}</div>`;
-    });
+/* SERVERS */
+function createServer(){
+  const name=prompt("Server Name?");
+  if(!name) return;
+  db.collection("servers").add({
+    name,
+    owner:me.uid,
+    members:[me.uid]
   });
 }
 
-function openDM(uid,name){
-  currentRoom=[me.uid,uid].sort().join("_");
-  roomName.textContent="DM: "+name;
-  messages.innerHTML="";
+function loadServers(){
+  db.collection("servers")
+    .where("members","array-contains",me.uid)
+    .onSnapshot(s=>{
+      serverList.innerHTML="";
+      s.forEach(d=>{
+        serverList.innerHTML+=`
+          <div class="server" onclick="selectServer('${d.id}','${d.data().name}')">🟣</div>`;
+      });
+    });
+}
+
+function selectServer(id,name){
+  currentServer=id;
+  serverName.textContent=name;
+  loadChannels();
+}
+
+/* CHANNELS */
+function createChannel(){
+  if(!currentServer) return alert("Erst Server wählen");
+  const name=prompt("Channel Name?");
+  if(!name) return;
+  db.collection("channels").add({
+    server:currentServer,
+    name
+  });
+}
+
+function loadChannels(){
+  db.collection("channels")
+    .where("server","==",currentServer)
+    .onSnapshot(s=>{
+      channelList.innerHTML="";
+      s.forEach(d=>{
+        channelList.innerHTML+=`
+          <div class="channel" onclick="selectChannel('${d.id}','${d.data().name}')">
+            # ${d.data().name}
+          </div>`;
+      });
+    });
+}
+
+function selectChannel(id,name){
+  currentChannel=id;
+  channelName.textContent="# "+name;
   loadMessages();
 }
 
-function setRoom(r){
-  currentRoom=r;
-  roomName.textContent="# allgemein";
-  messages.innerHTML="";
-  loadMessages();
-}
-
-/* SEND */
+/* CHAT */
 function send(){
-  if(!msg.value) return;
+  if(!msg.value||!currentChannel) return;
   db.collection("messages").add({
-    room: currentRoom,
-    text: msg.value,
-    name: me.displayName,
-    photo: me.photoURL,
-    time: Date.now()
+    channel:currentChannel,
+    text:msg.value,
+    name:me.displayName,
+    photo:me.photoURL,
+    time:Date.now()
   });
   msg.value="";
 }
 
-/* 🔥 MESSAGES – FIX OHNE INDEX */
 function loadMessages(){
   db.collection("messages")
-    .where("room","==",currentRoom)
+    .where("channel","==",currentChannel)
     .onSnapshot(s=>{
       messages.innerHTML="";
       let arr=[];
       s.forEach(d=>arr.push(d.data()));
       arr.sort((a,b)=>a.time-b.time);
       arr.forEach(m=>{
-        messages.innerHTML += `
+        messages.innerHTML+=`
           <div class="msg">
             <img src="${m.photo}">
-            <div class="bubble">
-              <b>${m.name}</b><br>${m.text}
-            </div>
+            <div class="bubble"><b>${m.name}</b><br>${m.text}</div>
           </div>`;
       });
-      messages.scrollTop = messages.scrollHeight;
+      messages.scrollTop=messages.scrollHeight;
     });
 }
 </script>
