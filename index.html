@@ -2,14 +2,25 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Test</title>
+  <title>Chat</title>
+  <style>
+    body { font-family: Arial; background:#f2f2f2; }
+    #chat { max-width:600px; margin:20px auto; background:#fff; padding:10px; }
+    #messages { height:300px; overflow-y:auto; border:1px solid #ccc; padding:5px; }
+    input { width:80%; padding:5px; }
+    button { width:18%; padding:5px; }
+  </style>
 </head>
+
 <body>
+  <div id="chat">
+    <h2>🔥 Live Chat</h2>
+    <div id="messages"></div><br>
+    <input id="msg" placeholder="Nachricht eingeben">
+    <button onclick="sendMessage()">Senden</button>
+  </div>
 
-  <h1>GitHub Pages läuft</h1>
-  <button onclick="addTest()">Test in Firestore speichern</button>
-
-  <!-- Firebase SDKs -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -17,26 +28,34 @@
     const firebaseConfig = {
       apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
       authDomain: "enzae-4134d.firebaseapp.com",
-      projectId: "enzae-4134d",
-      storageBucket: "enzae-4134d.firebasestorage.app",
-      messagingSenderId: "96676313807",
-      appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
+      projectId: "enzae-4134d"
     };
 
-    // Firebase starten
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Test-Funktion
-    function addTest() {
-      db.collection("test").add({
-        text: "Hallo von GitHub Pages",
-        time: new Date()
-      })
-      .then(() => alert("Gespeichert ✅"))
-      .catch(err => alert("Fehler ❌ " + err));
-    }
-  </script>
+    function sendMessage() {
+      const text = document.getElementById("msg").value;
+      if (!text) return;
 
+      db.collection("messages").add({
+        text: text,
+        time: Date.now()
+      });
+
+      document.getElementById("msg").value = "";
+    }
+
+    db.collection("messages")
+      .orderBy("time")
+      .onSnapshot(snapshot => {
+        const box = document.getElementById("messages");
+        box.innerHTML = "";
+        snapshot.forEach(doc => {
+          box.innerHTML += "<div>💬 " + doc.data().text + "</div>";
+        });
+        box.scrollTop = box.scrollHeight;
+      });
+  </script>
 </body>
 </html>
