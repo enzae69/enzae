@@ -2,258 +2,98 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>enzae</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<title>Enzae Chat</title>
 
 <style>
-body{margin:0;font-family:Arial;background:#313338;color:#fff}
-button{background:#5865f2;border:0;color:#fff;padding:6px 10px;border-radius:5px;cursor:pointer}
-input{padding:6px;border-radius:5px;border:0}
-#login,#usernameBox{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
-#app{display:none;height:100vh;display:flex}
-#servers{width:60px;background:#1e1f22;padding:5px}
-#left{width:240px;background:#2b2d31;padding:10px}
-#chat{flex:1;display:flex;flex-direction:column}
-#messages{flex:1;padding:10px;overflow-y:auto}
-.msg{margin-bottom:8px}
-.item{padding:6px;border-radius:4px;cursor:pointer}
-.item:hover{background:#3f4147}
-.small{font-size:12px;color:#aaa}
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #313338;
+    color: white;
+  }
+  #login, #app {
+    display: none;
+    height: 100vh;
+  }
+  #login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  button {
+    padding: 12px 18px;
+    font-size: 16px;
+    cursor: pointer;
+  }
 </style>
 </head>
 
 <body>
 
+<!-- LOGIN -->
 <div id="login">
-  <h2>enzae</h2>
-  <button onclick="login()">Mit Google anmelden</button>
+  <button id="loginBtn">Mit Google anmelden</button>
 </div>
 
-<div id="usernameBox" style="display:none">
-  <h3>Username wählen</h3>
-  <input id="usernameInput" placeholder="username">
-  <button onclick="saveUsername()">Speichern</button>
-  <p id="userErr" class="small"></p>
-</div>
-
+<!-- APP -->
 <div id="app">
-
-  <div id="servers">
-    <div class="item" onclick="openGlobal()">#</div>
-    <div class="item" onclick="openDMs()">💬</div>
-  </div>
-
-  <div id="left">
-    <b id="leftTitle">Global</b>
-    <div id="list"></div>
-
-    <div id="friendsUI" style="display:none;margin-top:10px">
-      <hr>
-      <input id="friendInput" placeholder="Username adden">
-      <button onclick="addFriend()">➕</button>
-    </div>
-
-    <hr>
-    <button onclick="logout()">Logout</button>
-  </div>
-
-  <div id="chat">
-    <div style="padding:10px;background:#1e1f22" id="chatTitle">Chat</div>
-    <div id="messages"></div>
-    <div style="display:flex;padding:10px;background:#1e1f22">
-      <input id="msgInput" style="flex:1" placeholder="Nachricht...">
-      <button onclick="sendMessage()">Senden</button>
-    </div>
-  </div>
-
+  <h2>✅ Eingeloggt</h2>
+  <p id="userInfo"></p>
+  <button id="logoutBtn">Abmelden</button>
 </div>
 
-<script>
-/* 🔥 CONFIG */
-firebase.initializeApp({
- apiKey:"AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
- authDomain:"enzae-4134d.firebaseapp.com",
- projectId:"enzae-4134d"
-});
+<!-- FIREBASE -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
-const auth = firebase.auth();
-const db = firebase.firestore();
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+    authDomain: "enzae-4134d.firebaseapp.com",
+    projectId: "enzae-4134d"
+  };
 
-/* STATE */
-let user = null;
-let username = null;
-let mode = "global";
-let currentDM = null;
+  // INIT
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
-/* 🔐 AUTH STATE – LOOP FIX */
-auth.onAuthStateChanged(async u=>{
-  login.style.display = "none";
-  app.style.display = "none";
-  usernameBox.style.display = "none";
+  const loginDiv = document.getElementById("login");
+  const appDiv = document.getElementById("app");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const userInfo = document.getElementById("userInfo");
 
-  if(!u){
-    login.style.display = "flex";
-    return;
-  }
-
-  user = u;
-
-  let doc;
-  try{
-    doc = await db.collection("users").doc(u.uid).get();
-  }catch(e){
-    alert("Firestore Rules blockieren!");
-    return;
-  }
-
-  if(!doc.exists || !doc.data().username){
-    usernameBox.style.display = "flex";
-    return;
-  }
-
-  username = doc.data().username;
-  app.style.display = "flex";
-  openGlobal();
-});
-
-/* AUTH */
-function login(){
- auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-}
-function logout(){
- auth.signOut();
-}
-
-/* USERNAME */
-async function saveUsername(){
- const n = usernameInput.value.trim();
- if(!n)return;
-
- const q = await db.collection("users").where("username","==",n).get();
- if(!q.empty){
-  userErr.innerText = "Name vergeben";
-  return;
- }
-
- await db.collection("users").doc(user.uid).set({
-  username:n,
-  createdAt:firebase.firestore.FieldValue.serverTimestamp()
- });
-
- location.reload();
-}
-
-/* GLOBAL CHAT */
-function openGlobal(){
- mode="global";
- chatTitle.innerText="# global";
- leftTitle.innerText="Global";
- friendsUI.style.display="none";
- list.innerHTML="";
- loadGlobal();
-}
-
-function loadGlobal(){
- db.collection("messages")
- .orderBy("time")
- .onSnapshot(s=>{
-  messages.innerHTML="";
-  s.forEach(d=>{
-   const m=d.data();
-   messages.innerHTML+=`<div class="msg"><b>${m.user}</b>: ${m.text}</div>`;
+  // 🔥 WICHTIG: AUTH STATE
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // EINGELOGGT
+      loginDiv.style.display = "none";
+      appDiv.style.display = "block";
+      userInfo.textContent = "Angemeldet als: " + user.email;
+    } else {
+      // AUSGELOGGT
+      appDiv.style.display = "none";
+      loginDiv.style.display = "flex";
+    }
   });
-  messages.scrollTop=messages.scrollHeight;
- });
-}
 
-/* FRIENDS + DMS */
-function openDMs(){
- mode="dm";
- leftTitle.innerText="Freunde";
- friendsUI.style.display="block";
- loadFriends();
-}
+  // LOGIN
+  loginBtn.onclick = async () => {
+    await signInWithPopup(auth, provider);
+  };
 
-async function addFriend(){
- const name = friendInput.value.trim();
- if(!name)return;
-
- const s = await db.collection("users").where("username","==",name).get();
- if(s.empty){ alert("Nicht gefunden"); return; }
-
- const fid = s.docs[0].id;
- await db.collection("friends").add({
-  from:user.uid,
-  to:fid,
-  status:"accepted"
- });
-
- friendInput.value="";
- loadFriends();
-}
-
-function loadFriends(){
- list.innerHTML="";
- db.collection("friends")
- .where("from","==",user.uid)
- .where("status","==","accepted")
- .onSnapshot(s=>{
-  list.innerHTML="";
-  s.forEach(d=>{
-   const div=document.createElement("div");
-   div.className="item";
-   div.innerText="💬 "+d.data().to;
-   div.onclick=()=>openDM(d.data().to);
-   list.appendChild(div);
-  });
- });
-}
-
-function openDM(uid){
- currentDM = uid;
- chatTitle.innerText="DM";
- db.collection("dms")
- .doc(dmId(uid))
- .collection("messages")
- .orderBy("time")
- .onSnapshot(s=>{
-  messages.innerHTML="";
-  s.forEach(d=>{
-   const m=d.data();
-   messages.innerHTML+=`<div class="msg"><b>${m.user}</b>: ${m.text}</div>`;
-  });
-  messages.scrollTop=messages.scrollHeight;
- });
-}
-
-function dmId(other){
- return [user.uid,other].sort().join("_");
-}
-
-/* SEND */
-function sendMessage(){
- if(!msgInput.value)return;
-
- if(mode==="global"){
-  db.collection("messages").add({
-   text:msgInput.value,
-   user:username,
-   time:firebase.firestore.FieldValue.serverTimestamp()
-  });
- } else if(mode==="dm" && currentDM){
-  db.collection("dms").doc(dmId(currentDM))
-   .collection("messages").add({
-    text:msgInput.value,
-    user:username,
-    time:firebase.firestore.FieldValue.serverTimestamp()
-   });
- }
-
- msgInput.value="";
-}
+  // LOGOUT
+  logoutBtn.onclick = async () => {
+    await signOut(auth);
+  };
 </script>
+
 </body>
 </html>
