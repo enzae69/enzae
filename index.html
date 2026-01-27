@@ -2,97 +2,175 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Enzae Chat</title>
+<title>enzae</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-  body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #313338;
-    color: white;
-  }
-  #login, #app {
-    display: none;
-    height: 100vh;
-  }
-  #login {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  button {
-    padding: 12px 18px;
-    font-size: 16px;
-    cursor: pointer;
-  }
+body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
+#login{height:100vh;display:flex;justify-content:center;align-items:center}
+button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px;cursor:pointer}
+#app{display:none;height:100vh}
+.servers{width:70px;background:#1e1f22;display:flex;justify-content:center;align-items:center}
+.channels{width:220px;background:#2b2d31;padding:10px}
+.channel{padding:6px;border-radius:4px;cursor:pointer;color:#949ba4}
+.channel.active,.channel:hover{background:#3f4147;color:#fff}
+.chat{flex:1;display:flex;flex-direction:column}
+.topbar{background:#2b2d31;padding:10px;font-weight:bold}
+.messages{flex:1;padding:15px;overflow-y:auto}
+.msg{display:flex;gap:10px;margin-bottom:12px}
+.msg img{width:40px;height:40px;border-radius:50%}
+.bubble{background:#313338;padding:8px 10px;border-radius:8px}
+.inputbar{display:flex;gap:10px;padding:10px;background:#2b2d31}
+.inputbar input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
+.members{width:180px;background:#2b2d31;padding:10px}
+.user{color:#b5bac1;margin-bottom:6px;cursor:pointer}
+.user:hover{color:#fff}
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
 <div id="login">
-  <button id="loginBtn">Mit Google anmelden</button>
+  <button onclick="login()">Mit Google anmelden</button>
 </div>
 
-<!-- APP -->
 <div id="app">
-  <h2>✅ Eingeloggt</h2>
-  <p id="userInfo"></p>
-  <button id="logoutBtn">Abmelden</button>
+  <div class="servers">🟣</div>
+
+  <div class="channels">
+    <h3>enzae</h3>
+    <div class="channel active" onclick="setRoom('global')"># allgemein</div>
+  </div>
+
+  <div class="chat">
+    <div class="topbar" id="roomName"># allgemein</div>
+    <div class="messages" id="messages"></div>
+    <div class="inputbar">
+      <input id="msg" placeholder="Nachricht schreiben…">
+      <button onclick="send()">➤</button>
+    </div>
+  </div>
+
+  <div class="members">
+    <h4>Users</h4>
+    <div id="userList"></div>
+  </div>
 </div>
 
-<!-- FIREBASE -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    onAuthStateChanged,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+<script>
+/* DOM */
+const loginDiv = document.getElementById("login");
+const appDiv   = document.getElementById("app");
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-    authDomain: "enzae-4134d.firebaseapp.com",
-    projectId: "enzae-4134d"
-  };
+/* Firebase */
+firebase.initializeApp({
+  apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain: "enzae-4134d.firebaseapp.com",
+  projectId: "enzae-4134d"
+});
 
-  // INIT
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const provider = new GoogleAuthProvider();
+const auth = firebase.auth();
+const db   = firebase.firestore();
 
-  const loginDiv = document.getElementById("login");
-  const appDiv = document.getElementById("app");
-  const loginBtn = document.getElementById("loginBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const userInfo = document.getElementById("userInfo");
+/* Login merken */
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-  // 🔥 WICHTIG: AUTH STATE
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      // EINGELOGGT
-      loginDiv.style.display = "none";
-      appDiv.style.display = "block";
-      userInfo.textContent = "Angemeldet als: " + user.email;
-    } else {
-      // AUSGELOGGT
-      appDiv.style.display = "none";
-      loginDiv.style.display = "flex";
-    }
+let me = null;
+let currentRoom = "global";
+
+/* LOGIN */
+function login(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>alert(e.message));
+}
+
+/* AUTH STATE */
+auth.onAuthStateChanged(user=>{
+  if(!user){
+    loginDiv.style.display="flex";
+    appDiv.style.display="none";
+    return;
+  }
+
+  me = user;
+  loginDiv.style.display="none";
+  appDiv.style.display="flex";
+
+  db.collection("users").doc(user.uid).set({
+    name: user.displayName,
+    photo: user.photoURL
   });
 
-  // LOGIN
-  loginBtn.onclick = async () => {
-    await signInWithPopup(auth, provider);
-  };
+  loadUsers();
+  loadMessages();
+});
 
-  // LOGOUT
-  logoutBtn.onclick = async () => {
-    await signOut(auth);
-  };
+/* USERS / DMs */
+function loadUsers(){
+  db.collection("users").onSnapshot(s=>{
+    userList.innerHTML="";
+    s.forEach(d=>{
+      if(d.id===me.uid) return;
+      const u=d.data();
+      userList.innerHTML +=
+        `<div class="user" onclick="openDM('${d.id}','${u.name}')">👤 ${u.name}</div>`;
+    });
+  });
+}
+
+function openDM(uid,name){
+  currentRoom=[me.uid,uid].sort().join("_");
+  roomName.textContent="DM: "+name;
+  messages.innerHTML="";
+  loadMessages();
+}
+
+function setRoom(r){
+  currentRoom=r;
+  roomName.textContent="# allgemein";
+  messages.innerHTML="";
+  loadMessages();
+}
+
+/* SEND */
+function send(){
+  if(!msg.value) return;
+  db.collection("messages").add({
+    room: currentRoom,
+    text: msg.value,
+    name: me.displayName,
+    photo: me.photoURL,
+    time: Date.now()
+  });
+  msg.value="";
+}
+
+/* 🔥 MESSAGES – FIX OHNE INDEX */
+function loadMessages(){
+  db.collection("messages")
+    .where("room","==",currentRoom)
+    .onSnapshot(s=>{
+      messages.innerHTML="";
+      let arr=[];
+      s.forEach(d=>arr.push(d.data()));
+      arr.sort((a,b)=>a.time-b.time);
+      arr.forEach(m=>{
+        messages.innerHTML += `
+          <div class="msg">
+            <img src="${m.photo}">
+            <div class="bubble">
+              <b>${m.name}</b><br>${m.text}
+            </div>
+          </div>`;
+      });
+      messages.scrollTop = messages.scrollHeight;
+    });
+}
 </script>
 
 </body>
