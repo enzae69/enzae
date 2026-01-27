@@ -5,116 +5,31 @@
 <title>enzae</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Firebase compat -->
+<!-- Firebase compat SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-body {
-  margin:0;
-  font-family: Arial, sans-serif;
-  background:#1e1f22;
-  color:#dbdee1;
-}
-#login {
-  height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
-button {
-  background:#5865f2;
-  border:none;
-  color:white;
-  padding:10px 14px;
-  border-radius:6px;
-  cursor:pointer;
-}
-#app {
-  display:none;
-  height:100vh;
-}
-.servers {
-  width:70px;
-  background:#1e1f22;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-.channels {
-  width:220px;
-  background:#2b2d31;
-  padding:10px;
-}
-.channels h3 {
-  margin-top:0;
-}
-.channel {
-  padding:6px;
-  border-radius:4px;
-  cursor:pointer;
-  color:#949ba4;
-}
-.channel.active, .channel:hover {
-  background:#3f4147;
-  color:white;
-}
-.chat {
-  flex:1;
-  display:flex;
-  flex-direction:column;
-}
-.topbar {
-  background:#2b2d31;
-  padding:10px;
-  font-weight:bold;
-}
-.messages {
-  flex:1;
-  padding:15px;
-  overflow-y:auto;
-}
-.msg {
-  display:flex;
-  gap:10px;
-  margin-bottom:12px;
-}
-.msg img {
-  width:40px;
-  height:40px;
-  border-radius:50%;
-}
-.bubble {
-  background:#313338;
-  padding:8px 10px;
-  border-radius:8px;
-}
-.inputbar {
-  display:flex;
-  gap:10px;
-  padding:10px;
-  background:#2b2d31;
-}
-.inputbar input {
-  flex:1;
-  background:#1e1f22;
-  border:none;
-  border-radius:6px;
-  color:white;
-  padding:10px;
-}
-.members {
-  width:180px;
-  background:#2b2d31;
-  padding:10px;
-}
-.user {
-  color:#b5bac1;
-  margin-bottom:6px;
-  cursor:pointer;
-}
-.user:hover { color:white; }
+body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
+#login{height:100vh;display:flex;justify-content:center;align-items:center}
+button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px;cursor:pointer}
+#app{display:none;height:100vh}
+.servers{width:70px;background:#1e1f22;display:flex;justify-content:center;align-items:center}
+.channels{width:220px;background:#2b2d31;padding:10px}
+.channel{padding:6px;border-radius:4px;cursor:pointer;color:#949ba4}
+.channel.active,.channel:hover{background:#3f4147;color:#fff}
+.chat{flex:1;display:flex;flex-direction:column}
+.topbar{background:#2b2d31;padding:10px;font-weight:bold}
+.messages{flex:1;padding:15px;overflow-y:auto}
+.msg{display:flex;gap:10px;margin-bottom:12px}
+.msg img{width:40px;height:40px;border-radius:50%}
+.bubble{background:#313338;padding:8px 10px;border-radius:8px}
+.inputbar{display:flex;gap:10px;padding:10px;background:#2b2d31}
+.inputbar input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
+.members{width:180px;background:#2b2d31;padding:10px}
+.user{color:#b5bac1;margin-bottom:6px;cursor:pointer}
+.user:hover{color:#fff}
 </style>
 </head>
 
@@ -148,6 +63,7 @@ button {
 </div>
 
 <script>
+/* 🔧 Firebase Config */
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
   authDomain: "enzae-4134d.firebaseapp.com",
@@ -155,41 +71,50 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+/* ✅ WICHTIG: Login dauerhaft speichern */
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
 let me = null;
 let currentRoom = "global";
 
-function login() {
+/* LOGIN */
+function login(){
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider);
+  auth.signInWithPopup(provider).catch(e=>alert(e.message));
 }
 
-auth.onAuthStateChanged(user => {
-  if (user) {
-    me = user;
-    login.style.display = "none";
-    app.style.display = "flex";
-
-    db.collection("users").doc(user.uid).set({
-      name: user.displayName,
-      photo: user.photoURL
-    });
-
-    loadUsers();
-    loadMessages();
+/* AUTH STATE */
+auth.onAuthStateChanged(user=>{
+  if(!user){
+    loginDiv.style.display="flex";
+    app.style.display="none";
+    return;
   }
+  me=user;
+  loginDiv.style.display="none";
+  app.style.display="flex";
+
+  db.collection("users").doc(user.uid).set({
+    name:user.displayName,
+    photo:user.photoURL
+  });
+
+  loadUsers();
+  loadMessages();
 });
 
-// USERS + DMs
-function loadUsers() {
-  db.collection("users").onSnapshot(snap => {
-    userList.innerHTML = "";
-    snap.forEach(doc => {
-      if (doc.id === me.uid) return;
-      const u = doc.data();
-      userList.innerHTML += `
+/* USERS + DMs */
+function loadUsers(){
+  db.collection("users").onSnapshot(snap=>{
+    userList.innerHTML="";
+    snap.forEach(doc=>{
+      if(doc.id===me.uid) return;
+      const u=doc.data();
+      userList.innerHTML+=`
         <div class="user" onclick="openDM('${doc.id}','${u.name}')">
           👤 ${u.name}
         </div>`;
@@ -197,42 +122,42 @@ function loadUsers() {
   });
 }
 
-function openDM(uid, name) {
-  currentRoom = [me.uid, uid].sort().join("_");
-  roomName.textContent = "DM: " + name;
-  messages.innerHTML = "";
+function openDM(uid,name){
+  currentRoom=[me.uid,uid].sort().join("_");
+  roomName.textContent="DM: "+name;
+  messages.innerHTML="";
   loadMessages();
 }
 
-function setRoom(room) {
-  currentRoom = room;
-  roomName.textContent = "# allgemein";
-  messages.innerHTML = "";
+function setRoom(r){
+  currentRoom=r;
+  roomName.textContent="# allgemein";
+  messages.innerHTML="";
   loadMessages();
 }
 
-// CHAT
-function send() {
-  if (!msg.value) return;
+/* CHAT */
+function send(){
+  if(!msg.value) return;
   db.collection("messages").add({
-    room: currentRoom,
-    text: msg.value,
-    name: me.displayName,
-    photo: me.photoURL,
-    time: Date.now()
+    room:currentRoom,
+    text:msg.value,
+    name:me.displayName,
+    photo:me.photoURL,
+    time:Date.now()
   });
-  msg.value = "";
+  msg.value="";
 }
 
-function loadMessages() {
+function loadMessages(){
   db.collection("messages")
-    .where("room", "==", currentRoom)
+    .where("room","==",currentRoom)
     .orderBy("time")
-    .onSnapshot(snap => {
-      messages.innerHTML = "";
-      snap.forEach(doc => {
-        const m = doc.data();
-        messages.innerHTML += `
+    .onSnapshot(snap=>{
+      messages.innerHTML="";
+      snap.forEach(doc=>{
+        const m=doc.data();
+        messages.innerHTML+=`
           <div class="msg">
             <img src="${m.photo}">
             <div class="bubble">
@@ -240,7 +165,7 @@ function loadMessages() {
             </div>
           </div>`;
       });
-      messages.scrollTop = messages.scrollHeight;
+      messages.scrollTop=messages.scrollHeight;
     });
 }
 </script>
