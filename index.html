@@ -1,105 +1,147 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>enzae</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>enzae</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Firebase COMPAT (wichtig) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  <style>
-    body {
-      margin: 0;
-      background: #2b2d31;
-      color: white;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    #login, #chat {
-      display: none;
-      text-align: center;
-    }
-
-    button {
-      background: #5865f2;
-      border: none;
-      padding: 12px 20px;
-      color: white;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #4752c4;
-    }
-  </style>
+<style>
+body { margin:0; font-family:Arial; background:#2b2d31; color:white; }
+#login { height:100vh; display:flex; justify-content:center; align-items:center; }
+#app { display:none; height:100vh; }
+#users { width:200px; background:#1e1f22; padding:10px; overflow-y:auto; }
+#chat { flex:1; display:flex; flex-direction:column; }
+#messages { flex:1; padding:10px; overflow-y:auto; }
+.msg { display:flex; margin-bottom:10px; }
+.msg img { width:36px; height:36px; border-radius:50%; margin-right:8px; }
+.bubble { background:#313338; padding:8px; border-radius:8px; }
+#input { display:flex; padding:10px; background:#1e1f22; }
+#input input { flex:1; padding:8px; border:none; border-radius:6px; }
+button { background:#5865f2; border:none; color:white; padding:8px 12px; border-radius:6px; cursor:pointer; }
+.user { cursor:pointer; margin-bottom:6px; }
+.user:hover { color:#5865f2; }
+</style>
 </head>
+
 <body>
 
-  <div id="login">
-    <h1>enzae</h1>
-    <button id="loginBtn">Mit Google anmelden</button>
+<div id="login">
+  <button onclick="login()">Mit Google anmelden</button>
+</div>
+
+<div id="app">
+  <div id="users">
+    <h3>Users</h3>
+    <div id="userList"></div>
   </div>
 
   <div id="chat">
-    <h2>Angemeldet ✅</h2>
-    <p id="userInfo"></p>
-    <button onclick="logout()">Logout</button>
+    <div id="messages"></div>
+    <div id="input">
+      <input id="msg" placeholder="Nachricht...">
+      <button onclick="send()">➤</button>
+    </div>
   </div>
+</div>
 
-  <script>
-    // 🔧 Firebase Config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-      authDomain: "enzae-4134d.firebaseapp.com",
-      projectId: "enzae-4134d",
-      storageBucket: "enzae-4134d.firebasestorage.app",
-      messagingSenderId: "96676313807",
-      appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
-    };
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain: "enzae-4134d.firebaseapp.com",
+  projectId: "enzae-4134d"
+};
 
-    // ✅ NUR EINMAL initialisieren
-    firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-    const auth = firebase.auth();
+let me = null;
+let currentRoom = "global"; // global oder dm_UID
 
-    const loginDiv = document.getElementById("login");
-    const chatDiv  = document.getElementById("chat");
-    const userInfo = document.getElementById("userInfo");
+function login() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+}
 
-    // ✅ AUTH STATE LISTENER (SEHR WICHTIG)
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        loginDiv.style.display = "none";
-        chatDiv.style.display = "block";
-        userInfo.textContent = `${user.displayName} (${user.email})`;
-      } else {
-        chatDiv.style.display = "none";
-        loginDiv.style.display = "block";
-      }
+auth.onAuthStateChanged(user => {
+  if (user) {
+    me = user;
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "flex";
+
+    db.collection("users").doc(user.uid).set({
+      name: user.displayName,
+      photo: user.photoURL
     });
 
-    // ✅ LOGIN NUR PER BUTTON
-    document.getElementById("loginBtn").addEventListener("click", () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).catch(err => {
-        alert(err.message);
-        console.error(err);
+    loadUsers();
+    loadMessages();
+  }
+});
+
+// USERS
+function loadUsers() {
+  db.collection("users").onSnapshot(snap => {
+    userList.innerHTML = "";
+    snap.forEach(doc => {
+      if (doc.id === me.uid) return;
+      const u = doc.data();
+      userList.innerHTML += `
+        <div class="user" onclick="openDM('${doc.id}')">
+          👤 ${u.name}
+        </div>`;
+    });
+  });
+}
+
+// DMs
+function openDM(uid) {
+  currentRoom = [me.uid, uid].sort().join("_");
+  messages.innerHTML = "";
+  loadMessages();
+}
+
+// MESSAGES
+function send() {
+  const text = msg.value;
+  if (!text) return;
+
+  db.collection("messages").add({
+    room: currentRoom,
+    text,
+    uid: me.uid,
+    name: me.displayName,
+    photo: me.photoURL,
+    time: Date.now()
+  });
+  msg.value = "";
+}
+
+function loadMessages() {
+  db.collection("messages")
+    .where("room", "==", currentRoom)
+    .orderBy("time")
+    .onSnapshot(snap => {
+      messages.innerHTML = "";
+      snap.forEach(doc => {
+        const m = doc.data();
+        messages.innerHTML += `
+          <div class="msg">
+            <img src="${m.photo}">
+            <div class="bubble">
+              <b>${m.name}</b><br>${m.text}
+            </div>
+          </div>`;
       });
+      messages.scrollTop = messages.scrollHeight;
     });
-
-    function logout() {
-      auth.signOut();
-    }
-  </script>
+}
+</script>
 
 </body>
 </html>
