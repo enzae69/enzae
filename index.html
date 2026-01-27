@@ -1,129 +1,234 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>enzae chat</title>
-<style>
-body{margin:0;font-family:Arial;background:#2b2d31;color:#fff}
-#top{padding:10px;background:#1e1f22;display:flex;justify-content:space-between}
-#app{display:flex;height:calc(100vh - 40px)}
-#left{width:250px;background:#1e1f22;padding:10px}
-#main{flex:1;padding:10px}
-input,button{width:100%;padding:8px;margin:5px 0;border:none;border-radius:4px}
-button{background:#5865F2;color:white;cursor:pointer}
-.user{padding:5px;border-bottom:1px solid #333}
-.online{color:#3ba55d}
-.offline{color:#777}
-</style>
-</head>
-<body>
-
-<div id="top">
-  <div>enzae</div>
-  <button onclick="login()">Login mit Google</button>
-</div>
-
-<div id="app" style="display:none">
-  <div id="left">
-    <h3>👤 Profil</h3>
-    <div id="me"></div>
-
-    <h3>➕ Freund adden</h3>
-    <input id="addName" placeholder="Username">
-    <button onclick="addFriend()">Hinzufügen</button>
-
-    <h3>👥 Freunde</h3>
-    <div id="friends"></div>
-  </div>
-
-  <div id="main">
-    <h2>Willkommen 👋</h2>
-    <p>Online‑Status & Freunde funktionieren</p>
-  </div>
-</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background:#2b2d31;
+  color:white;
+}
+#login, #usernameBox {
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+}
+button {
+  padding:10px 15px;
+  background:#5865f2;
+  border:none;
+  color:white;
+  border-radius:5px;
+  cursor:pointer;
+}
+input {
+  padding:10px;
+  margin-top:10px;
+  border-radius:5px;
+  border:none;
+}
+#app {
+  display:none;
+  height:100vh;
+}
+#sidebar {
+  width:220px;
+  background:#1e1f22;
+  padding:10px;
+}
+#chat {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+#messages {
+  flex:1;
+  padding:10px;
+  overflow-y:auto;
+}
+.msg {
+  margin-bottom:10px;
+}
+#sendBox {
+  display:flex;
+}
+#sendBox input {
+  flex:1;
+}
+#top {
+  background:#1e1f22;
+  padding:10px;
+  display:flex;
+  justify-content:space-between;
+}
+.small {
+  font-size:12px;
+  color:#aaa;
+}
+</style>
+</head>
+
+<body>
+
+<div id="login">
+  <h2>enzae</h2>
+  <button onclick="login()">Mit Google anmelden</button>
+</div>
+
+<div id="usernameBox" style="display:none">
+  <h3>Username wählen</h3>
+  <input id="usernameInput" placeholder="username">
+  <button onclick="saveUsername()">Speichern</button>
+  <p id="userErr" class="small"></p>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <b>Server</b><br>
+    <div># global</div>
+    <hr>
+    <div class="small" id="status"></div>
+    <button onclick="changeUsername()">Username ändern</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <div id="chat">
+    <div id="top"># global-chat</div>
+    <div id="messages"></div>
+    <div id="sendBox">
+      <input id="msgInput" placeholder="Nachricht...">
+      <button onclick="sendMessage()">Senden</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
   authDomain: "enzae-4134d.firebaseapp.com",
   projectId: "enzae-4134d",
+  storageBucket: "enzae-4134d.firebasestorage.app",
+  messagingSenderId: "96676313807",
+  appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
 };
+
 firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.firestore();
-let me;
+
+const loginDiv = document.getElementById("login");
+const appDiv = document.getElementById("app");
+const usernameBox = document.getElementById("usernameBox");
+
+let currentUser;
+let currentUsername;
+
+// 🔐 AUTH STATE (wichtigster Teil)
+auth.onAuthStateChanged(async user => {
+  if (!user) {
+    loginDiv.style.display = "flex";
+    appDiv.style.display = "none";
+    usernameBox.style.display = "none";
+    return;
+  }
+
+  currentUser = user;
+  loginDiv.style.display = "none";
+
+  const doc = await db.collection("users").doc(user.uid).get();
+
+  if (!doc.exists || !doc.data().username) {
+    usernameBox.style.display = "flex";
+    appDiv.style.display = "none";
+  } else {
+    currentUsername = doc.data().username;
+    usernameBox.style.display = "none";
+    appDiv.style.display = "flex";
+    document.getElementById("status").innerText = "🟢 Online als " + currentUsername;
+    setOnline();
+    loadMessages();
+  }
+});
 
 function login(){
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
 }
 
-auth.onAuthStateChanged(async u=>{
-  if(!u) return;
-  me = u;
-  document.getElementById("app").style.display="flex";
+function logout(){
+  auth.signOut();
+}
 
-  const ref = db.collection("users").doc(u.uid);
-  const snap = await ref.get();
+async function saveUsername(){
+  const name = document.getElementById("usernameInput").value.trim();
+  if (!name) return;
 
-  if(!snap.exists){
-    let username = prompt("Wähle einen Username (einmalig):");
-    await db.collection("usernames").doc(username).set({uid:u.uid});
-    await ref.set({
-      uid:u.uid,
-      name:u.displayName,
-      username,
-      online:true
-    });
-    await db.collection("friends").doc(u.uid).set({list:[]});
-  }else{
-    await ref.update({online:true});
+  const taken = await db.collection("users")
+    .where("username","==",name).get();
+
+  if (!taken.empty) {
+    document.getElementById("userErr").innerText = "Name schon vergeben";
+    return;
   }
 
-  document.getElementById("me").innerHTML =
-    u.displayName + " <span class='online'>● online</span>";
-
-  loadFriends();
-});
-
-window.addEventListener("beforeunload",()=>{
-  if(me) db.collection("users").doc(me.uid).update({online:false});
-});
-
-async function addFriend(){
-  const name = addName.value;
-  const doc = await db.collection("usernames").doc(name).get();
-  if(!doc.exists) return alert("User nicht gefunden");
-
-  const fid = doc.data().uid;
-  if(fid===me.uid) return;
-
-  const ref = db.collection("friends").doc(me.uid);
-  await ref.update({
-    list: firebase.firestore.FieldValue.arrayUnion(fid)
+  await db.collection("users").doc(currentUser.uid).set({
+    username: name,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  loadFriends();
+  location.reload();
 }
 
-async function loadFriends(){
-  const box = document.getElementById("friends");
-  box.innerHTML="";
-  const snap = await db.collection("friends").doc(me.uid).get();
-  for(const uid of snap.data().list){
-    const u = await db.collection("users").doc(uid).get();
-    const d = u.data();
-    box.innerHTML+=`
-      <div class="user">
-        ${d.username}
-        <span class="${d.online?'online':'offline'}">●</span>
-      </div>`;
-  }
+function changeUsername(){
+  usernameBox.style.display = "flex";
+  appDiv.style.display = "none";
+}
+
+function setOnline(){
+  db.collection("presence").doc(currentUser.uid).set({
+    online:true,
+    last:firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+function sendMessage(){
+  const text = msgInput.value;
+  if (!text) return;
+  db.collection("messages").add({
+    text,
+    user: currentUsername,
+    uid: currentUser.uid,
+    time: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  msgInput.value="";
+}
+
+function loadMessages(){
+  db.collection("messages")
+    .orderBy("time")
+    .onSnapshot(snap=>{
+      messages.innerHTML="";
+      snap.forEach(doc=>{
+        const m = doc.data();
+        const div = document.createElement("div");
+        div.className="msg";
+        div.innerHTML = `<b>${m.user}</b>: ${m.text}`;
+        messages.appendChild(div);
+      });
+      messages.scrollTop = messages.scrollHeight;
+    });
 }
 </script>
+
 </body>
 </html>
