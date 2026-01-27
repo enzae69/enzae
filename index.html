@@ -11,20 +11,110 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-body { margin:0; font-family:Arial; background:#2b2d31; color:white; }
-#login { height:100vh; display:flex; justify-content:center; align-items:center; }
-#app { display:none; height:100vh; }
-#users { width:200px; background:#1e1f22; padding:10px; overflow-y:auto; }
-#chat { flex:1; display:flex; flex-direction:column; }
-#messages { flex:1; padding:10px; overflow-y:auto; }
-.msg { display:flex; margin-bottom:10px; }
-.msg img { width:36px; height:36px; border-radius:50%; margin-right:8px; }
-.bubble { background:#313338; padding:8px; border-radius:8px; }
-#input { display:flex; padding:10px; background:#1e1f22; }
-#input input { flex:1; padding:8px; border:none; border-radius:6px; }
-button { background:#5865f2; border:none; color:white; padding:8px 12px; border-radius:6px; cursor:pointer; }
-.user { cursor:pointer; margin-bottom:6px; }
-.user:hover { color:#5865f2; }
+body {
+  margin:0;
+  font-family: Arial, sans-serif;
+  background:#1e1f22;
+  color:#dbdee1;
+}
+#login {
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+button {
+  background:#5865f2;
+  border:none;
+  color:white;
+  padding:10px 14px;
+  border-radius:6px;
+  cursor:pointer;
+}
+#app {
+  display:none;
+  height:100vh;
+}
+.servers {
+  width:70px;
+  background:#1e1f22;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.channels {
+  width:220px;
+  background:#2b2d31;
+  padding:10px;
+}
+.channels h3 {
+  margin-top:0;
+}
+.channel {
+  padding:6px;
+  border-radius:4px;
+  cursor:pointer;
+  color:#949ba4;
+}
+.channel.active, .channel:hover {
+  background:#3f4147;
+  color:white;
+}
+.chat {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+.topbar {
+  background:#2b2d31;
+  padding:10px;
+  font-weight:bold;
+}
+.messages {
+  flex:1;
+  padding:15px;
+  overflow-y:auto;
+}
+.msg {
+  display:flex;
+  gap:10px;
+  margin-bottom:12px;
+}
+.msg img {
+  width:40px;
+  height:40px;
+  border-radius:50%;
+}
+.bubble {
+  background:#313338;
+  padding:8px 10px;
+  border-radius:8px;
+}
+.inputbar {
+  display:flex;
+  gap:10px;
+  padding:10px;
+  background:#2b2d31;
+}
+.inputbar input {
+  flex:1;
+  background:#1e1f22;
+  border:none;
+  border-radius:6px;
+  color:white;
+  padding:10px;
+}
+.members {
+  width:180px;
+  background:#2b2d31;
+  padding:10px;
+}
+.user {
+  color:#b5bac1;
+  margin-bottom:6px;
+  cursor:pointer;
+}
+.user:hover { color:white; }
 </style>
 </head>
 
@@ -35,17 +125,25 @@ button { background:#5865f2; border:none; color:white; padding:8px 12px; border-
 </div>
 
 <div id="app">
-  <div id="users">
-    <h3>Users</h3>
-    <div id="userList"></div>
+  <div class="servers">🟣</div>
+
+  <div class="channels">
+    <h3>enzae</h3>
+    <div class="channel active" onclick="setRoom('global')"># allgemein</div>
   </div>
 
-  <div id="chat">
-    <div id="messages"></div>
-    <div id="input">
-      <input id="msg" placeholder="Nachricht...">
+  <div class="chat">
+    <div class="topbar" id="roomName"># allgemein</div>
+    <div class="messages" id="messages"></div>
+    <div class="inputbar">
+      <input id="msg" placeholder="Nachricht schreiben…">
       <button onclick="send()">➤</button>
     </div>
+  </div>
+
+  <div class="members">
+    <h4>Users</h4>
+    <div id="userList"></div>
   </div>
 </div>
 
@@ -61,7 +159,7 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let me = null;
-let currentRoom = "global"; // global oder dm_UID
+let currentRoom = "global";
 
 function login() {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -71,8 +169,8 @@ function login() {
 auth.onAuthStateChanged(user => {
   if (user) {
     me = user;
-    document.getElementById("login").style.display = "none";
-    document.getElementById("app").style.display = "flex";
+    login.style.display = "none";
+    app.style.display = "flex";
 
     db.collection("users").doc(user.uid).set({
       name: user.displayName,
@@ -84,7 +182,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// USERS
+// USERS + DMs
 function loadUsers() {
   db.collection("users").onSnapshot(snap => {
     userList.innerHTML = "";
@@ -92,29 +190,33 @@ function loadUsers() {
       if (doc.id === me.uid) return;
       const u = doc.data();
       userList.innerHTML += `
-        <div class="user" onclick="openDM('${doc.id}')">
+        <div class="user" onclick="openDM('${doc.id}','${u.name}')">
           👤 ${u.name}
         </div>`;
     });
   });
 }
 
-// DMs
-function openDM(uid) {
+function openDM(uid, name) {
   currentRoom = [me.uid, uid].sort().join("_");
+  roomName.textContent = "DM: " + name;
   messages.innerHTML = "";
   loadMessages();
 }
 
-// MESSAGES
-function send() {
-  const text = msg.value;
-  if (!text) return;
+function setRoom(room) {
+  currentRoom = room;
+  roomName.textContent = "# allgemein";
+  messages.innerHTML = "";
+  loadMessages();
+}
 
+// CHAT
+function send() {
+  if (!msg.value) return;
   db.collection("messages").add({
     room: currentRoom,
-    text,
-    uid: me.uid,
+    text: msg.value,
     name: me.displayName,
     photo: me.photoURL,
     time: Date.now()
