@@ -1,192 +1,129 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>enzae</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>enzae chat</title>
+<style>
+body{margin:0;font-family:Arial;background:#2b2d31;color:#fff}
+#top{padding:10px;background:#1e1f22;display:flex;justify-content:space-between}
+#app{display:flex;height:calc(100vh - 40px)}
+#left{width:250px;background:#1e1f22;padding:10px}
+#main{flex:1;padding:10px}
+input,button{width:100%;padding:8px;margin:5px 0;border:none;border-radius:4px}
+button{background:#5865F2;color:white;cursor:pointer}
+.user{padding:5px;border-bottom:1px solid #333}
+.online{color:#3ba55d}
+.offline{color:#777}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <div>enzae</div>
+  <button onclick="login()">Login mit Google</button>
+</div>
+
+<div id="app" style="display:none">
+  <div id="left">
+    <h3>👤 Profil</h3>
+    <div id="me"></div>
+
+    <h3>➕ Freund adden</h3>
+    <input id="addName" placeholder="Username">
+    <button onclick="addFriend()">Hinzufügen</button>
+
+    <h3>👥 Freunde</h3>
+    <div id="friends"></div>
+  </div>
+
+  <div id="main">
+    <h2>Willkommen 👋</h2>
+    <p>Online‑Status & Freunde funktionieren</p>
+  </div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<style>
-body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
-#login{height:100vh;display:flex;justify-content:center;align-items:center}
-button{background:#5865f2;border:0;color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer}
-#app{display:none;height:100vh;display:flex}
-
-.servers{width:70px;background:#1e1f22;padding:6px}
-.server{background:#313338;margin-bottom:8px;padding:10px;text-align:center;border-radius:50%;cursor:pointer}
-.server.active{background:#5865f2}
-
-.channels{width:220px;background:#2b2d31;padding:10px}
-.channel{padding:6px;border-radius:4px;cursor:pointer;color:#949ba4}
-.channel.active,.channel:hover{background:#3f4147;color:#fff}
-
-.chat{flex:1;display:flex;flex-direction:column}
-.topbar{background:#2b2d31;padding:10px;font-weight:bold}
-.messages{flex:1;padding:15px;overflow-y:auto}
-.msg{display:flex;gap:10px;margin-bottom:12px}
-.msg img{width:36px;height:36px;border-radius:50%}
-.bubble{background:#313338;padding:8px 10px;border-radius:8px}
-
-.inputbar{display:flex;gap:8px;padding:10px;background:#2b2d31}
-input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
-</style>
-</head>
-
-<body>
-
-<div id="login">
-  <button onclick="login()">Mit Google anmelden</button>
-</div>
-
-<div id="app">
-  <div class="servers">
-    <div class="server" onclick="createServer()">＋</div>
-    <div id="serverList"></div>
-  </div>
-
-  <div class="channels">
-    <h4 id="serverName">Server</h4>
-    <div class="channel" onclick="createChannel()">＋ Channel</div>
-    <div id="channelList"></div>
-  </div>
-
-  <div class="chat">
-    <div class="topbar" id="channelName"># channel</div>
-    <div class="messages" id="messages"></div>
-    <div class="inputbar">
-      <input id="msg" placeholder="Nachricht…">
-      <button onclick="send()">➤</button>
-    </div>
-  </div>
-</div>
-
 <script>
-const loginDiv=document.getElementById("login");
-const appDiv=document.getElementById("app");
+const firebaseConfig = {
+  apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain: "enzae-4134d.firebaseapp.com",
+  projectId: "enzae-4134d",
+};
+firebase.initializeApp(firebaseConfig);
 
-firebase.initializeApp({
-  apiKey:"AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-  authDomain:"enzae-4134d.firebaseapp.com",
-  projectId:"enzae-4134d"
-});
+const auth = firebase.auth();
+const db = firebase.firestore();
+let me;
 
-const auth=firebase.auth();
-const db=firebase.firestore();
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-
-let me=null;
-let currentServer=null;
-let currentChannel=null;
-
-/* LOGIN */
 function login(){
-  const p=new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(p);
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 }
 
-auth.onAuthStateChanged(u=>{
-  if(!u){loginDiv.style.display="flex";appDiv.style.display="none";return;}
-  me=u;
-  loginDiv.style.display="none";
-  appDiv.style.display="flex";
-  loadServers();
+auth.onAuthStateChanged(async u=>{
+  if(!u) return;
+  me = u;
+  document.getElementById("app").style.display="flex";
+
+  const ref = db.collection("users").doc(u.uid);
+  const snap = await ref.get();
+
+  if(!snap.exists){
+    let username = prompt("Wähle einen Username (einmalig):");
+    await db.collection("usernames").doc(username).set({uid:u.uid});
+    await ref.set({
+      uid:u.uid,
+      name:u.displayName,
+      username,
+      online:true
+    });
+    await db.collection("friends").doc(u.uid).set({list:[]});
+  }else{
+    await ref.update({online:true});
+  }
+
+  document.getElementById("me").innerHTML =
+    u.displayName + " <span class='online'>● online</span>";
+
+  loadFriends();
 });
 
-/* SERVERS */
-function createServer(){
-  const name=prompt("Server Name?");
-  if(!name) return;
-  db.collection("servers").add({
-    name,
-    owner:me.uid,
-    members:[me.uid]
+window.addEventListener("beforeunload",()=>{
+  if(me) db.collection("users").doc(me.uid).update({online:false});
+});
+
+async function addFriend(){
+  const name = addName.value;
+  const doc = await db.collection("usernames").doc(name).get();
+  if(!doc.exists) return alert("User nicht gefunden");
+
+  const fid = doc.data().uid;
+  if(fid===me.uid) return;
+
+  const ref = db.collection("friends").doc(me.uid);
+  await ref.update({
+    list: firebase.firestore.FieldValue.arrayUnion(fid)
   });
+
+  loadFriends();
 }
 
-function loadServers(){
-  db.collection("servers")
-    .where("members","array-contains",me.uid)
-    .onSnapshot(s=>{
-      serverList.innerHTML="";
-      s.forEach(d=>{
-        serverList.innerHTML+=`
-          <div class="server" onclick="selectServer('${d.id}','${d.data().name}')">🟣</div>`;
-      });
-    });
-}
-
-function selectServer(id,name){
-  currentServer=id;
-  serverName.textContent=name;
-  loadChannels();
-}
-
-/* CHANNELS */
-function createChannel(){
-  if(!currentServer) return alert("Erst Server wählen");
-  const name=prompt("Channel Name?");
-  if(!name) return;
-  db.collection("channels").add({
-    server:currentServer,
-    name
-  });
-}
-
-function loadChannels(){
-  db.collection("channels")
-    .where("server","==",currentServer)
-    .onSnapshot(s=>{
-      channelList.innerHTML="";
-      s.forEach(d=>{
-        channelList.innerHTML+=`
-          <div class="channel" onclick="selectChannel('${d.id}','${d.data().name}')">
-            # ${d.data().name}
-          </div>`;
-      });
-    });
-}
-
-function selectChannel(id,name){
-  currentChannel=id;
-  channelName.textContent="# "+name;
-  loadMessages();
-}
-
-/* CHAT */
-function send(){
-  if(!msg.value||!currentChannel) return;
-  db.collection("messages").add({
-    channel:currentChannel,
-    text:msg.value,
-    name:me.displayName,
-    photo:me.photoURL,
-    time:Date.now()
-  });
-  msg.value="";
-}
-
-function loadMessages(){
-  db.collection("messages")
-    .where("channel","==",currentChannel)
-    .onSnapshot(s=>{
-      messages.innerHTML="";
-      let arr=[];
-      s.forEach(d=>arr.push(d.data()));
-      arr.sort((a,b)=>a.time-b.time);
-      arr.forEach(m=>{
-        messages.innerHTML+=`
-          <div class="msg">
-            <img src="${m.photo}">
-            <div class="bubble"><b>${m.name}</b><br>${m.text}</div>
-          </div>`;
-      });
-      messages.scrollTop=messages.scrollHeight;
-    });
+async function loadFriends(){
+  const box = document.getElementById("friends");
+  box.innerHTML="";
+  const snap = await db.collection("friends").doc(me.uid).get();
+  for(const uid of snap.data().list){
+    const u = await db.collection("users").doc(uid).get();
+    const d = u.data();
+    box.innerHTML+=`
+      <div class="user">
+        ${d.username}
+        <span class="${d.online?'online':'offline'}">●</span>
+      </div>`;
+  }
 }
 </script>
-
 </body>
 </html>
