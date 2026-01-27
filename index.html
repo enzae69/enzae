@@ -14,16 +14,14 @@ button{background:#5865f2;border:0;color:#fff;padding:6px 10px;border-radius:5px
 input{padding:6px;border-radius:5px;border:0}
 #login,#usernameBox{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #app{display:none;height:100vh;display:flex}
-#servers{width:70px;background:#1e1f22;padding:5px}
-#channels{width:200px;background:#2b2d31;padding:10px}
+#servers{width:60px;background:#1e1f22;padding:5px}
+#left{width:220px;background:#2b2d31;padding:10px}
 #chat{flex:1;display:flex;flex-direction:column}
-.server{background:#5865f2;margin-bottom:5px;text-align:center;padding:8px;border-radius:50%;cursor:pointer}
-.channel{cursor:pointer;padding:5px}
-.channel:hover{background:#3f4147}
 #messages{flex:1;padding:10px;overflow-y:auto}
 .msg{margin-bottom:8px}
-#send{display:flex;padding:10px;background:#1e1f22}
 .small{font-size:12px;color:#aaa}
+.item{cursor:pointer;padding:5px;border-radius:4px}
+.item:hover{background:#3f4147}
 </style>
 </head>
 
@@ -44,22 +42,28 @@ input{padding:6px;border-radius:5px;border:0}
 <div id="app">
 
   <div id="servers">
-    <div onclick="createServer()" class="server">+</div>
-    <div id="serverList"></div>
+    <div class="item" onclick="openGlobal()">#</div>
+    <div class="item" onclick="openDMs()">💬</div>
   </div>
 
-  <div id="channels">
-    <b id="serverName">Server</b><br><br>
-    <div id="channelList"></div>
-    <button onclick="createChannel()">+ Channel</button>
+  <div id="left">
+    <b id="leftTitle">Global</b>
+    <div id="list"></div>
+
+    <div id="friendsUI" style="margin-top:10px;display:none">
+      <hr>
+      <input id="friendInput" placeholder="Username adden">
+      <button onclick="addFriend()">➕</button>
+    </div>
+
     <hr>
     <button onclick="logout()">Logout</button>
   </div>
 
   <div id="chat">
-    <div style="padding:10px;background:#1e1f22" id="channelName"># channel</div>
+    <div style="padding:10px;background:#1e1f22" id="chatTitle">Chat</div>
     <div id="messages"></div>
-    <div id="send">
+    <div style="display:flex;padding:10px;background:#1e1f22">
       <input id="msgInput" style="flex:1" placeholder="Nachricht...">
       <button onclick="sendMessage()">Senden</button>
     </div>
@@ -74,11 +78,10 @@ const firebaseConfig={
  projectId:"enzae-4134d"
 };
 firebase.initializeApp(firebaseConfig);
-
 const auth=firebase.auth();
 const db=firebase.firestore();
 
-let user,currentServer,currentChannel,username;
+let user,username,mode="global",currentDM;
 
 auth.onAuthStateChanged(async u=>{
  if(!u){login.style.display="flex";app.style.display="none";return;}
@@ -88,12 +91,10 @@ auth.onAuthStateChanged(async u=>{
  username=doc.data().username;
  usernameBox.style.display="none";
  app.style.display="flex";
- loadServers();
+ openGlobal();
 });
 
-function login(){
- auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-}
+function login(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}
 function logout(){auth.signOut()}
 
 async function saveUsername(){
@@ -104,93 +105,94 @@ async function saveUsername(){
  location.reload();
 }
 
-/* SERVERS */
-function createServer(){
- const name=prompt("Server Name");
- if(!name)return;
- db.collection("servers").add({name,owner:user.uid});
+/* GLOBAL CHAT */
+function openGlobal(){
+ mode="global"; chatTitle.innerText="# global";
+ friendsUI.style.display="none";
+ leftTitle.innerText="Global";
+ loadGlobal();
 }
 
-function loadServers(){
- db.collection("servers").onSnapshot(s=>{
-  serverList.innerHTML="";
+function loadGlobal(){
+ db.collection("messages").orderBy("time")
+ .onSnapshot(s=>{
+  messages.innerHTML="";
+  s.forEach(d=>{
+   const m=d.data();
+   messages.innerHTML+=`<div class="msg"><b>${m.user}</b>: ${m.text}</div>`;
+  });
+  messages.scrollTop=messages.scrollHeight;
+ });
+}
+
+/* FRIENDS + DMS */
+function openDMs(){
+ mode="dm"; leftTitle.innerText="Freunde";
+ friendsUI.style.display="block";
+ loadFriends();
+}
+
+function addFriend(){
+ const name=friendInput.value.trim();
+ if(!name)return;
+ db.collection("users").where("username","==",name).get().then(s=>{
+  if(s.empty)return alert("Nicht gefunden");
+  const fid=s.docs[0].id;
+  db.collection("friends").add({
+   from:user.uid,to:fid,status:"pending"
+  });
+  friendInput.value="";
+ });
+}
+
+function loadFriends(){
+ list.innerHTML="";
+ db.collection("friends")
+ .where("from","==",user.uid).where("status","==","accepted")
+ .onSnapshot(s=>{
+  list.innerHTML="";
   s.forEach(d=>{
    const div=document.createElement("div");
-   div.className="server";
-   div.innerText=d.data().name[0];
-   div.onclick=()=>selectServer(d.id,d.data().name);
-   serverList.appendChild(div);
+   div.className="item";
+   div.innerText="💬 "+d.data().to;
+   div.onclick=()=>openDM(d.data().to);
+   list.appendChild(div);
   });
  });
 }
 
-function selectServer(id,name){
- currentServer=id;
- serverName.innerText=name;
- loadChannels();
-}
-
-/* CHANNELS */
-function createChannel(){
- const name=prompt("Channel Name");
- if(!name)return;
- db.collection("servers").doc(currentServer)
-   .collection("channels").add({name});
-}
-
-function loadChannels(){
- db.collection("servers").doc(currentServer)
-  .collection("channels")
-  .onSnapshot(s=>{
-   channelList.innerHTML="";
-   s.forEach(d=>{
-    const div=document.createElement("div");
-    div.className="channel";
-    div.innerText="# "+d.data().name;
-    div.onclick=()=>selectChannel(d.id,d.data().name);
-    channelList.appendChild(div);
-   });
+function openDM(uid){
+ currentDM=uid; chatTitle.innerText="DM";
+ db.collection("dms")
+ .doc(dmId(uid)).collection("messages")
+ .orderBy("time").onSnapshot(s=>{
+  messages.innerHTML="";
+  s.forEach(d=>{
+   const m=d.data();
+   messages.innerHTML+=`<div class="msg"><b>${m.user}</b>: ${m.text}</div>`;
   });
+ });
 }
 
-function selectChannel(id,name){
- currentChannel=id;
- channelName.innerText="# "+name;
- loadMessages();
+function dmId(other){
+ return [user.uid,other].sort().join("_");
 }
 
-/* MESSAGES */
+/* SEND */
 function sendMessage(){
  if(!msgInput.value)return;
- db.collection("servers").doc(currentServer)
-  .collection("channels").doc(currentChannel)
-  .collection("messages")
-  .add({
-   text:msgInput.value,
-   user:username,
-   time:firebase.firestore.FieldValue.serverTimestamp()
+ if(mode=="global"){
+  db.collection("messages").add({
+   text:msgInput.value,user:username,time:firebase.firestore.FieldValue.serverTimestamp()
   });
+ } else {
+  db.collection("dms").doc(dmId(currentDM))
+   .collection("messages").add({
+    text:msgInput.value,user:username,time:firebase.firestore.FieldValue.serverTimestamp()
+   });
+ }
  msgInput.value="";
 }
-
-function loadMessages(){
- db.collection("servers").doc(currentServer)
-  .collection("channels").doc(currentChannel)
-  .collection("messages")
-  .orderBy("time")
-  .onSnapshot(s=>{
-   messages.innerHTML="";
-   s.forEach(d=>{
-    const m=d.data();
-    const div=document.createElement("div");
-    div.className="msg";
-    div.innerHTML="<b>"+m.user+"</b>: "+m.text;
-    messages.appendChild(div);
-   });
-   messages.scrollTop=messages.scrollHeight;
-  });
-}
 </script>
-
 </body>
 </html>
