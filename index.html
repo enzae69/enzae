@@ -15,13 +15,13 @@ input{padding:6px;border-radius:5px;border:0}
 #login,#usernameBox{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #app{display:none;height:100vh;display:flex}
 #servers{width:60px;background:#1e1f22;padding:5px}
-#left{width:220px;background:#2b2d31;padding:10px}
+#left{width:240px;background:#2b2d31;padding:10px}
 #chat{flex:1;display:flex;flex-direction:column}
 #messages{flex:1;padding:10px;overflow-y:auto}
 .msg{margin-bottom:8px}
-.small{font-size:12px;color:#aaa}
-.item{cursor:pointer;padding:5px;border-radius:4px}
+.item{padding:6px;border-radius:4px;cursor:pointer}
 .item:hover{background:#3f4147}
+.small{font-size:12px;color:#aaa}
 </style>
 </head>
 
@@ -50,7 +50,7 @@ input{padding:6px;border-radius:5px;border:0}
     <b id="leftTitle">Global</b>
     <div id="list"></div>
 
-    <div id="friendsUI" style="margin-top:10px;display:none">
+    <div id="friendsUI" style="display:none;margin-top:10px">
       <hr>
       <input id="friendInput" placeholder="Username adden">
       <button onclick="addFriend()">➕</button>
@@ -72,49 +72,93 @@ input{padding:6px;border-radius:5px;border:0}
 </div>
 
 <script>
-const firebaseConfig={
+/* 🔥 CONFIG */
+firebase.initializeApp({
  apiKey:"AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
  authDomain:"enzae-4134d.firebaseapp.com",
  projectId:"enzae-4134d"
-};
-firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth();
-const db=firebase.firestore();
-
-let user,username,mode="global",currentDM;
-
-auth.onAuthStateChanged(async u=>{
- if(!u){login.style.display="flex";app.style.display="none";return;}
- user=u; login.style.display="none";
- const doc=await db.collection("users").doc(u.uid).get();
- if(!doc.exists){usernameBox.style.display="flex";return;}
- username=doc.data().username;
- usernameBox.style.display="none";
- app.style.display="flex";
- openGlobal();
 });
 
-function login(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}
-function logout(){auth.signOut()}
+const auth = firebase.auth();
+const db = firebase.firestore();
 
+/* STATE */
+let user = null;
+let username = null;
+let mode = "global";
+let currentDM = null;
+
+/* 🔐 AUTH STATE – LOOP FIX */
+auth.onAuthStateChanged(async u=>{
+  login.style.display = "none";
+  app.style.display = "none";
+  usernameBox.style.display = "none";
+
+  if(!u){
+    login.style.display = "flex";
+    return;
+  }
+
+  user = u;
+
+  let doc;
+  try{
+    doc = await db.collection("users").doc(u.uid).get();
+  }catch(e){
+    alert("Firestore Rules blockieren!");
+    return;
+  }
+
+  if(!doc.exists || !doc.data().username){
+    usernameBox.style.display = "flex";
+    return;
+  }
+
+  username = doc.data().username;
+  app.style.display = "flex";
+  openGlobal();
+});
+
+/* AUTH */
+function login(){
+ auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+}
+function logout(){
+ auth.signOut();
+}
+
+/* USERNAME */
 async function saveUsername(){
- const n=usernameInput.value.trim();
- const q=await db.collection("users").where("username","==",n).get();
- if(!q.empty){userErr.innerText="Name vergeben";return;}
- await db.collection("users").doc(user.uid).set({username:n});
+ const n = usernameInput.value.trim();
+ if(!n)return;
+
+ const q = await db.collection("users").where("username","==",n).get();
+ if(!q.empty){
+  userErr.innerText = "Name vergeben";
+  return;
+ }
+
+ await db.collection("users").doc(user.uid).set({
+  username:n,
+  createdAt:firebase.firestore.FieldValue.serverTimestamp()
+ });
+
  location.reload();
 }
 
 /* GLOBAL CHAT */
 function openGlobal(){
- mode="global"; chatTitle.innerText="# global";
- friendsUI.style.display="none";
+ mode="global";
+ chatTitle.innerText="# global";
  leftTitle.innerText="Global";
+ friendsUI.style.display="none";
+ list.innerHTML="";
  loadGlobal();
 }
 
 function loadGlobal(){
- db.collection("messages").orderBy("time")
+ db.collection("messages")
+ .orderBy("time")
  .onSnapshot(s=>{
   messages.innerHTML="";
   s.forEach(d=>{
@@ -127,28 +171,35 @@ function loadGlobal(){
 
 /* FRIENDS + DMS */
 function openDMs(){
- mode="dm"; leftTitle.innerText="Freunde";
+ mode="dm";
+ leftTitle.innerText="Freunde";
  friendsUI.style.display="block";
  loadFriends();
 }
 
-function addFriend(){
- const name=friendInput.value.trim();
+async function addFriend(){
+ const name = friendInput.value.trim();
  if(!name)return;
- db.collection("users").where("username","==",name).get().then(s=>{
-  if(s.empty)return alert("Nicht gefunden");
-  const fid=s.docs[0].id;
-  db.collection("friends").add({
-   from:user.uid,to:fid,status:"pending"
-  });
-  friendInput.value="";
+
+ const s = await db.collection("users").where("username","==",name).get();
+ if(s.empty){ alert("Nicht gefunden"); return; }
+
+ const fid = s.docs[0].id;
+ await db.collection("friends").add({
+  from:user.uid,
+  to:fid,
+  status:"accepted"
  });
+
+ friendInput.value="";
+ loadFriends();
 }
 
 function loadFriends(){
  list.innerHTML="";
  db.collection("friends")
- .where("from","==",user.uid).where("status","==","accepted")
+ .where("from","==",user.uid)
+ .where("status","==","accepted")
  .onSnapshot(s=>{
   list.innerHTML="";
   s.forEach(d=>{
@@ -162,15 +213,19 @@ function loadFriends(){
 }
 
 function openDM(uid){
- currentDM=uid; chatTitle.innerText="DM";
+ currentDM = uid;
+ chatTitle.innerText="DM";
  db.collection("dms")
- .doc(dmId(uid)).collection("messages")
- .orderBy("time").onSnapshot(s=>{
+ .doc(dmId(uid))
+ .collection("messages")
+ .orderBy("time")
+ .onSnapshot(s=>{
   messages.innerHTML="";
   s.forEach(d=>{
    const m=d.data();
    messages.innerHTML+=`<div class="msg"><b>${m.user}</b>: ${m.text}</div>`;
   });
+  messages.scrollTop=messages.scrollHeight;
  });
 }
 
@@ -181,16 +236,22 @@ function dmId(other){
 /* SEND */
 function sendMessage(){
  if(!msgInput.value)return;
- if(mode=="global"){
+
+ if(mode==="global"){
   db.collection("messages").add({
-   text:msgInput.value,user:username,time:firebase.firestore.FieldValue.serverTimestamp()
+   text:msgInput.value,
+   user:username,
+   time:firebase.firestore.FieldValue.serverTimestamp()
   });
- } else {
+ } else if(mode==="dm" && currentDM){
   db.collection("dms").doc(dmId(currentDM))
    .collection("messages").add({
-    text:msgInput.value,user:username,time:firebase.firestore.FieldValue.serverTimestamp()
+    text:msgInput.value,
+    user:username,
+    time:firebase.firestore.FieldValue.serverTimestamp()
    });
  }
+
  msgInput.value="";
 }
 </script>
