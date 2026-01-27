@@ -1,141 +1,173 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Discord Chat</title>
-
-  <style>
-    body {
-      margin: 0;
-      background: #2b2d31;
-      color: white;
-      font-family: Arial;
-    }
-
-    #login {
-      text-align: center;
-      margin-top: 100px;
-    }
-
-    #chat {
-      display: none;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    #messages {
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-    }
-
-    .msg {
-      margin-bottom: 8px;
-    }
-
-    .user {
-      color: #7289da;
-      font-weight: bold;
-    }
-
-    #input {
-      display: flex;
-      padding: 10px;
-      background: #1e1f22;
-    }
-
-    input {
-      flex: 1;
-      padding: 8px;
-      background: #383a40;
-      border: none;
-      color: white;
-    }
-
-    button {
-      margin-left: 10px;
-      background: #5865f2;
-      border: none;
-      color: white;
-      padding: 8px 14px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>enzae</title>
+<style>
+body {
+  margin:0;
+  font-family: Arial;
+  background:#2b2d31;
+  color:white;
+}
+#login {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+button {
+  background:#5865F2;
+  border:none;
+  color:white;
+  padding:10px 15px;
+  border-radius:5px;
+  cursor:pointer;
+}
+#app {
+  display:flex;
+  height:100vh;
+}
+#servers {
+  width:60px;
+  background:#1e1f22;
+  padding:10px;
+}
+#channels {
+  width:200px;
+  background:#2b2d31;
+  padding:10px;
+}
+#chat {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+#messages {
+  flex:1;
+  padding:10px;
+  overflow-y:auto;
+}
+.msg {
+  display:flex;
+  margin-bottom:10px;
+}
+.msg img {
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  margin-right:10px;
+}
+.bubble {
+  background:#3a3d42;
+  padding:8px;
+  border-radius:8px;
+}
+#input {
+  display:flex;
+  padding:10px;
+}
+#input input {
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:5px;
+}
+</style>
 </head>
 
 <body>
 
 <div id="login">
-  <h1>🔥 enzae </h1>
   <button onclick="login()">Mit Google anmelden</button>
 </div>
 
-<div id="chat">
-  <div id="messages"></div>
-
-  <div id="input">
-    <input id="msg" placeholder="Nachricht schreiben…">
-    <button onclick="send()">Senden</button>
+<div id="app" style="display:none;">
+  <div id="servers">🌍</div>
+  <div id="channels">
+    <h3># channels</h3>
+    <div onclick="setChannel('global')"># global</div>
+    <div onclick="setChannel('random')"># random</div>
+  </div>
+  <div id="chat">
+    <div id="messages"></div>
+    <div id="input">
+      <input id="msg" placeholder="Nachricht schreiben">
+      <button onclick="send()">➤</button>
+    </div>
   </div>
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-    authDomain: "enzae-4134d.firebaseapp.com",
-    projectId: "enzae-4134d"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain: "enzae-4134d.firebaseapp.com",
+  projectId: "enzae-4134d"
+};
+firebase.initializeApp(firebaseConfig);
 
-  firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-  const db = firebase.firestore();
-  const auth = firebase.auth();
+let user = null;
+let channel = "global";
 
-  let user = null;
+function login() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithRedirect(provider);
+}
 
-  function login() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider);
+auth.onAuthStateChanged(u => {
+  if (u) {
+    user = u;
+    document.getElementById("login").style.display="none";
+    document.getElementById("app").style.display="flex";
+    load();
   }
+});
 
-  auth.onAuthStateChanged(u => {
-    if (u) {
-      user = u;
-      document.getElementById("login").style.display = "none";
-      document.getElementById("chat").style.display = "flex";
-    }
+function setChannel(c){
+  channel = c;
+  load();
+}
+
+function send(){
+  const text = msg.value;
+  if(!text) return;
+  db.collection("messages").add({
+    text,
+    channel,
+    uid:user.uid,
+    name:user.displayName,
+    photo:user.photoURL,
+    time:Date.now()
   });
+  msg.value="";
+}
 
-  function send() {
-    const text = msg.value;
-    if (!text) return;
-
-    db.collection("messages").add({
-      text: text,
-      user: user.displayName,
-      time: Date.now()
-    });
-
-    msg.value = "";
-  }
-
+function load(){
   db.collection("messages")
+    .where("channel","==",channel)
     .orderBy("time")
-    .onSnapshot(snap => {
-      messages.innerHTML = "";
-      snap.forEach(doc => {
-        const m = doc.data();
-        messages.innerHTML +=
-          `<div class="msg"><span class="user">${m.user}</span>: ${m.text}</div>`;
+    .onSnapshot(s=>{
+      messages.innerHTML="";
+      s.forEach(d=>{
+        const m=d.data();
+        messages.innerHTML += `
+          <div class="msg">
+            <img src="${m.photo}">
+            <div class="bubble">
+              <b>${m.name}</b><br>${m.text}
+            </div>
+          </div>`;
       });
-      messages.scrollTop = messages.scrollHeight;
+      messages.scrollTop=messages.scrollHeight;
     });
+}
 </script>
 
 </body>
