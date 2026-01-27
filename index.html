@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <title>Test</title>
 </head>
-
 <body>
-  <h1>GitHub Pages läuft</h1>
 
-  <!-- Firebase -->
+  <h1>GitHub Pages läuft</h1>
+  <button onclick="addTest()">Test in Firestore speichern</button>
+
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -22,10 +23,20 @@
       appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
     };
 
+    // Firebase starten
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    console.log("Firebase läuft");
+    // Test-Funktion
+    function addTest() {
+      db.collection("test").add({
+        text: "Hallo von GitHub Pages",
+        time: new Date()
+      })
+      .then(() => alert("Gespeichert ✅"))
+      .catch(err => alert("Fehler ❌ " + err));
+    }
   </script>
+
 </body>
 </html>
