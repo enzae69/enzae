@@ -1,172 +1,229 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>enzae</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<title>enzae chat</title>
 
-<!-- Firebase compat -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
-#login{height:100vh;display:flex;justify-content:center;align-items:center}
-button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px;cursor:pointer}
-#app{display:none;height:100vh}
-.servers{width:70px;background:#1e1f22;display:flex;justify-content:center;align-items:center}
-.channels{width:220px;background:#2b2d31;padding:10px}
-.channel{padding:6px;border-radius:4px;cursor:pointer;color:#949ba4}
-.channel.active,.channel:hover{background:#3f4147;color:#fff}
-.chat{flex:1;display:flex;flex-direction:column}
-.topbar{background:#2b2d31;padding:10px;font-weight:bold}
-.messages{flex:1;padding:15px;overflow-y:auto}
-.msg{display:flex;gap:10px;margin-bottom:12px}
-.msg img{width:40px;height:40px;border-radius:50%}
-.bubble{background:#313338;padding:8px 10px;border-radius:8px}
-.inputbar{display:flex;gap:10px;padding:10px;background:#2b2d31}
-.inputbar input{flex:1;background:#1e1f22;border:0;border-radius:6px;color:#fff;padding:10px}
-.members{width:180px;background:#2b2d31;padding:10px}
-.user{color:#b5bac1;margin-bottom:6px;cursor:pointer}
-.user:hover{color:#fff}
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background:#2b2d31;
+  color:white;
+}
+#login, #usernameBox {
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+}
+button {
+  padding:10px 15px;
+  background:#5865f2;
+  border:none;
+  color:white;
+  border-radius:5px;
+  cursor:pointer;
+}
+input {
+  padding:10px;
+  margin-top:10px;
+  border-radius:5px;
+  border:none;
+}
+#app {
+  display:none;
+  height:100vh;
+}
+#sidebar {
+  width:220px;
+  background:#1e1f22;
+  padding:10px;
+}
+#chat {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+#messages {
+  flex:1;
+  padding:10px;
+  overflow-y:auto;
+}
+.msg {
+  margin-bottom:10px;
+}
+#sendBox {
+  display:flex;
+}
+#sendBox input {
+  flex:1;
+}
+#top {
+  background:#1e1f22;
+  padding:10px;
+  display:flex;
+  justify-content:space-between;
+}
+.small {
+  font-size:12px;
+  color:#aaa;
+}
 </style>
 </head>
 
 <body>
 
 <div id="login">
+  <h2>enzae</h2>
   <button onclick="login()">Mit Google anmelden</button>
 </div>
 
+<div id="usernameBox" style="display:none">
+  <h3>Username wählen</h3>
+  <input id="usernameInput" placeholder="username">
+  <button onclick="saveUsername()">Speichern</button>
+  <p id="userErr" class="small"></p>
+</div>
+
 <div id="app">
-  <div class="servers">🟣</div>
-
-  <div class="channels">
-    <h3>enzae</h3>
-    <div class="channel active" onclick="setRoom('global')"># allgemein</div>
+  <div id="sidebar">
+    <b>Server</b><br>
+    <div># global</div>
+    <hr>
+    <div class="small" id="status"></div>
+    <button onclick="changeUsername()">Username ändern</button>
+    <button onclick="logout()">Logout</button>
   </div>
 
-  <div class="chat">
-    <div class="topbar" id="roomName"># allgemein</div>
-    <div class="messages" id="messages"></div>
-    <div class="inputbar">
-      <input id="msg" placeholder="Nachricht schreiben…">
-      <button onclick="send()">➤</button>
+  <div id="chat">
+    <div id="top"># global-chat</div>
+    <div id="messages"></div>
+    <div id="sendBox">
+      <input id="msgInput" placeholder="Nachricht...">
+      <button onclick="sendMessage()">Senden</button>
     </div>
-  </div>
-
-  <div class="members">
-    <h4>Users</h4>
-    <div id="userList"></div>
   </div>
 </div>
 
 <script>
-/* DOM */
-const loginDiv = document.getElementById("login");
-const appDiv   = document.getElementById("app");
-
-/* Firebase */
-firebase.initializeApp({
+const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
   authDomain: "enzae-4134d.firebaseapp.com",
-  projectId: "enzae-4134d"
-});
+  projectId: "enzae-4134d",
+  storageBucket: "enzae-4134d.firebasestorage.app",
+  messagingSenderId: "96676313807",
+  appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
+};
+
+firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
-const db   = firebase.firestore();
+const db = firebase.firestore();
 
-/* Login merken */
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+const loginDiv = document.getElementById("login");
+const appDiv = document.getElementById("app");
+const usernameBox = document.getElementById("usernameBox");
 
-let me = null;
-let currentRoom = "global";
+let currentUser;
+let currentUsername;
 
-/* LOGIN */
-function login(){
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e=>alert(e.message));
-}
-
-/* AUTH STATE */
-auth.onAuthStateChanged(user=>{
-  if(!user){
-    loginDiv.style.display="flex";
-    appDiv.style.display="none";
+// 🔐 AUTH STATE (wichtigster Teil)
+auth.onAuthStateChanged(async user => {
+  if (!user) {
+    loginDiv.style.display = "flex";
+    appDiv.style.display = "none";
+    usernameBox.style.display = "none";
     return;
   }
 
-  me = user;
-  loginDiv.style.display="none";
-  appDiv.style.display="flex";
+  currentUser = user;
+  loginDiv.style.display = "none";
 
-  db.collection("users").doc(user.uid).set({
-    name: user.displayName,
-    photo: user.photoURL
-  });
+  const doc = await db.collection("users").doc(user.uid).get();
 
-  loadUsers();
-  loadMessages();
+  if (!doc.exists || !doc.data().username) {
+    usernameBox.style.display = "flex";
+    appDiv.style.display = "none";
+  } else {
+    currentUsername = doc.data().username;
+    usernameBox.style.display = "none";
+    appDiv.style.display = "flex";
+    document.getElementById("status").innerText = "🟢 Online als " + currentUsername;
+    setOnline();
+    loadMessages();
+  }
 });
 
-/* USERS / DMs */
-function loadUsers(){
-  db.collection("users").onSnapshot(s=>{
-    userList.innerHTML="";
-    s.forEach(d=>{
-      if(d.id===me.uid) return;
-      const u=d.data();
-      userList.innerHTML +=
-        `<div class="user" onclick="openDM('${d.id}','${u.name}')">👤 ${u.name}</div>`;
-    });
+function login(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+}
+
+function logout(){
+  auth.signOut();
+}
+
+async function saveUsername(){
+  const name = document.getElementById("usernameInput").value.trim();
+  if (!name) return;
+
+  const taken = await db.collection("users")
+    .where("username","==",name).get();
+
+  if (!taken.empty) {
+    document.getElementById("userErr").innerText = "Name schon vergeben";
+    return;
+  }
+
+  await db.collection("users").doc(currentUser.uid).set({
+    username: name,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  location.reload();
+}
+
+function changeUsername(){
+  usernameBox.style.display = "flex";
+  appDiv.style.display = "none";
+}
+
+function setOnline(){
+  db.collection("presence").doc(currentUser.uid).set({
+    online:true,
+    last:firebase.firestore.FieldValue.serverTimestamp()
   });
 }
 
-function openDM(uid,name){
-  currentRoom=[me.uid,uid].sort().join("_");
-  roomName.textContent="DM: "+name;
-  messages.innerHTML="";
-  loadMessages();
-}
-
-function setRoom(r){
-  currentRoom=r;
-  roomName.textContent="# allgemein";
-  messages.innerHTML="";
-  loadMessages();
-}
-
-/* SEND */
-function send(){
-  if(!msg.value) return;
+function sendMessage(){
+  const text = msgInput.value;
+  if (!text) return;
   db.collection("messages").add({
-    room: currentRoom,
-    text: msg.value,
-    name: me.displayName,
-    photo: me.photoURL,
-    time: Date.now()
+    text,
+    user: currentUsername,
+    uid: currentUser.uid,
+    time: firebase.firestore.FieldValue.serverTimestamp()
   });
-  msg.value="";
+  msgInput.value="";
 }
 
-/* 🔥 MESSAGES – FIX OHNE INDEX */
 function loadMessages(){
   db.collection("messages")
-    .where("room","==",currentRoom)
-    .onSnapshot(s=>{
+    .orderBy("time")
+    .onSnapshot(snap=>{
       messages.innerHTML="";
-      let arr=[];
-      s.forEach(d=>arr.push(d.data()));
-      arr.sort((a,b)=>a.time-b.time);
-      arr.forEach(m=>{
-        messages.innerHTML += `
-          <div class="msg">
-            <img src="${m.photo}">
-            <div class="bubble">
-              <b>${m.name}</b><br>${m.text}
-            </div>
-          </div>`;
+      snap.forEach(doc=>{
+        const m = doc.data();
+        const div = document.createElement("div");
+        div.className="msg";
+        div.innerHTML = `<b>${m.user}</b>: ${m.text}`;
+        messages.appendChild(div);
       });
       messages.scrollTop = messages.scrollHeight;
     });
