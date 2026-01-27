@@ -5,6 +5,7 @@
 <title>enzae</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- Firebase compat -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,7 +13,7 @@
 <style>
 body{margin:0;font-family:Arial;background:#1e1f22;color:#dbdee1}
 #login{height:100vh;display:flex;justify-content:center;align-items:center}
-button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px}
+button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6px;cursor:pointer}
 #app{display:none;height:100vh}
 .servers{width:70px;background:#1e1f22;display:flex;justify-content:center;align-items:center}
 .channels{width:220px;background:#2b2d31;padding:10px}
@@ -62,7 +63,7 @@ button{background:#5865f2;border:0;color:#fff;padding:10px 14px;border-radius:6p
 </div>
 
 <script>
-/* DOM FIX (WICHTIG) */
+/* DOM */
 const loginDiv = document.getElementById("login");
 const appDiv   = document.getElementById("app");
 
@@ -76,15 +77,16 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db   = firebase.firestore();
 
+/* Login merken */
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-let me=null;
-let currentRoom="global";
+let me = null;
+let currentRoom = "global";
 
 /* LOGIN */
 function login(){
-  const p=new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(p).catch(e=>alert(e.message));
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>alert(e.message));
 }
 
 /* AUTH STATE */
@@ -94,13 +96,14 @@ auth.onAuthStateChanged(user=>{
     appDiv.style.display="none";
     return;
   }
-  me=user;
+
+  me = user;
   loginDiv.style.display="none";
   appDiv.style.display="flex";
 
   db.collection("users").doc(user.uid).set({
-    name:user.displayName,
-    photo:user.photoURL
+    name: user.displayName,
+    photo: user.photoURL
   });
 
   loadUsers();
@@ -114,7 +117,8 @@ function loadUsers(){
     s.forEach(d=>{
       if(d.id===me.uid) return;
       const u=d.data();
-      userList.innerHTML+=`<div class="user" onclick="openDM('${d.id}','${u.name}')">👤 ${u.name}</div>`;
+      userList.innerHTML +=
+        `<div class="user" onclick="openDM('${d.id}','${u.name}')">👤 ${u.name}</div>`;
     });
   });
 }
@@ -133,34 +137,38 @@ function setRoom(r){
   loadMessages();
 }
 
-/* CHAT */
+/* SEND */
 function send(){
   if(!msg.value) return;
   db.collection("messages").add({
-    room:currentRoom,
-    text:msg.value,
-    name:me.displayName,
-    photo:me.photoURL,
-    time:Date.now()
+    room: currentRoom,
+    text: msg.value,
+    name: me.displayName,
+    photo: me.photoURL,
+    time: Date.now()
   });
   msg.value="";
 }
 
+/* 🔥 MESSAGES – FIX OHNE INDEX */
 function loadMessages(){
   db.collection("messages")
     .where("room","==",currentRoom)
-    .orderBy("time")
     .onSnapshot(s=>{
       messages.innerHTML="";
-      s.forEach(d=>{
-        const m=d.data();
-        messages.innerHTML+=`
+      let arr=[];
+      s.forEach(d=>arr.push(d.data()));
+      arr.sort((a,b)=>a.time-b.time);
+      arr.forEach(m=>{
+        messages.innerHTML += `
           <div class="msg">
             <img src="${m.photo}">
-            <div class="bubble"><b>${m.name}</b><br>${m.text}</div>
+            <div class="bubble">
+              <b>${m.name}</b><br>${m.text}
+            </div>
           </div>`;
       });
-      messages.scrollTop=messages.scrollHeight;
+      messages.scrollTop = messages.scrollHeight;
     });
 }
 </script>
