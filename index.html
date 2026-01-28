@@ -5,6 +5,7 @@
 <title>enzae chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
@@ -95,6 +96,7 @@ input {
 
 <body>
 
+<!-- LOGIN -->
 <div id="login">
   <h2>enzae</h2>
   <input id="usernameInput" placeholder="Username">
@@ -102,6 +104,7 @@ input {
   <p id="loginErr" class="small"></p>
 </div>
 
+<!-- APP -->
 <div id="app">
   <div id="sidebar">
     <b>Chats</b>
@@ -124,57 +127,64 @@ input {
 </div>
 
 <script>
+/* ---------- FIREBASE ---------- */
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
+  authDomain: "enzae-4134d.firebaseapp.com",
   projectId: "enzae-4134d"
 };
 firebase.initializeApp(firebaseConfig);
 
+const auth = firebase.auth();
 const db = firebase.firestore();
 
+/* ---------- STATE ---------- */
 let currentUser = null;
+let currentUsername = "";
 let currentChat = "global";
 let unsubscribe = null;
 
-/* ---------- LOGIN ---------- */
+/* ---------- LOGIN FLOW ---------- */
 async function enter(){
   const name = usernameInput.value.trim();
   if(!name){
-    loginErr.innerText="Username fehlt";
+    loginErr.innerText = "Username fehlt";
     return;
   }
 
+  // Username check
   const taken = await db.collection("users")
     .where("username","==",name).get();
 
   if(!taken.empty){
-    loginErr.innerText="Username vergeben";
+    loginErr.innerText = "Username vergeben";
     return;
   }
 
-  currentUser = {
-    id: crypto.randomUUID(),
-    username: name
-  };
+  // 👉 JETZT erst anonymous auth
+  await auth.signInAnonymously();
+  currentUser = auth.currentUser;
+  currentUsername = name;
 
-  await db.collection("users").doc(currentUser.id).set({
+  // User speichern
+  await db.collection("users").doc(currentUser.uid).set({
+    uid: currentUser.uid,
     username: name,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  login.style.display="none";
-  app.style.display="flex";
-  status.innerText="🟢 Online als " + name;
+  login.style.display = "none";
+  app.style.display = "flex";
+  status.innerText = "🟢 Online als " + name;
 
   loadUsers();
   openGlobal();
 }
 
 /* ---------- CHAT ---------- */
-
 function openGlobal(){
-  currentChat="global";
-  top.innerText="# global";
+  currentChat = "global";
+  top.innerText = "# global";
   loadGlobal();
 }
 
@@ -183,9 +193,9 @@ function dmId(a,b){
 }
 
 function openDM(uid, username){
-  messages.innerHTML="";
-  currentChat = dmId(currentUser.id, uid);
-  top.innerText="🔒 DM mit " + username;
+  messages.innerHTML = "";
+  currentChat = dmId(currentUser.uid, uid);
+  top.innerText = "🔒 DM mit " + username;
   loadDM();
 }
 
@@ -195,12 +205,12 @@ function send(){
 
   const data = {
     text,
-    user: currentUser.username,
-    uid: currentUser.id,
+    user: currentUsername,
+    uid: currentUser.uid,
     time: firebase.firestore.FieldValue.serverTimestamp()
   };
 
-  if(currentChat==="global"){
+  if(currentChat === "global"){
     db.collection("messages").add(data);
   } else {
     db.collection("dms")
@@ -208,9 +218,11 @@ function send(){
       .collection("messages")
       .add(data);
   }
-  msgInput.value="";
+
+  msgInput.value = "";
 }
 
+/* ---------- LOADERS ---------- */
 function loadGlobal(){
   unsubscribe && unsubscribe();
   unsubscribe = db.collection("messages")
@@ -228,14 +240,13 @@ function loadDM(){
 }
 
 function render(snap){
-  messages.innerHTML="";
+  messages.innerHTML = "";
   snap.forEach(doc=>{
     const m = doc.data();
     const div = document.createElement("div");
-    div.className="msg";
-    const initial = m.user[0].toUpperCase();
+    div.className = "msg";
     div.innerHTML = `
-      <span class="avatar">${initial}</span>
+      <span class="avatar">${m.user[0].toUpperCase()}</span>
       <b>${m.user}</b>: ${m.text}
     `;
     messages.appendChild(div);
@@ -244,25 +255,24 @@ function render(snap){
 }
 
 /* ---------- USERS / DMs ---------- */
-
 function loadUsers(){
   db.collection("users").onSnapshot(snap=>{
-    userList.innerHTML="";
-    let found=false;
+    userList.innerHTML = "";
+    let found = false;
 
     snap.forEach(doc=>{
-      if(doc.id===currentUser.id) return;
-      found=true;
+      if(doc.id === currentUser.uid) return;
+      found = true;
       const u = doc.data();
       const div = document.createElement("div");
-      div.className="user";
-      div.innerText=u.username;
-      div.onclick=()=>openDM(doc.id, u.username);
+      div.className = "user";
+      div.innerText = u.username;
+      div.onclick = () => openDM(doc.id, u.username);
       userList.appendChild(div);
     });
 
     if(!found){
-      userList.innerHTML="Keine anderen Nutzer";
+      userList.innerHTML = "Keine anderen Nutzer";
     }
   });
 }
