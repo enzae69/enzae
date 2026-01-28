@@ -31,8 +31,8 @@ input {
 #login {
   height:100vh;
   display:flex;
-  align-items:center;
   justify-content:center;
+  align-items:center;
   flex-direction:column;
 }
 #app {
@@ -144,7 +144,7 @@ let currentUsername = "";
 let currentChat = "global";
 let unsubscribe = null;
 
-/* ---------- LOGIN FLOW ---------- */
+/* ---------- LOGIN ---------- */
 async function enter(){
   const name = usernameInput.value.trim();
   if(!name){
@@ -152,7 +152,13 @@ async function enter(){
     return;
   }
 
-  // Username check
+  loginErr.innerText = "Verbinde…";
+
+  // ✅ ERST Auth (WICHTIG)
+  await auth.signInAnonymously();
+  currentUser = auth.currentUser;
+
+  // ✅ JETZT Firestore benutzen
   const taken = await db.collection("users")
     .where("username","==",name).get();
 
@@ -161,12 +167,8 @@ async function enter(){
     return;
   }
 
-  // 👉 JETZT erst anonymous auth
-  await auth.signInAnonymously();
-  currentUser = auth.currentUser;
   currentUsername = name;
 
-  // User speichern
   await db.collection("users").doc(currentUser.uid).set({
     uid: currentUser.uid,
     username: name,
@@ -254,15 +256,15 @@ function render(snap){
   messages.scrollTop = messages.scrollHeight;
 }
 
-/* ---------- USERS / DMs ---------- */
+/* ---------- USERS ---------- */
 function loadUsers(){
   db.collection("users").onSnapshot(snap=>{
     userList.innerHTML = "";
-    let found = false;
+    let found=false;
 
     snap.forEach(doc=>{
       if(doc.id === currentUser.uid) return;
-      found = true;
+      found=true;
       const u = doc.data();
       const div = document.createElement("div");
       div.className = "user";
