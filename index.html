@@ -11,7 +11,7 @@
 <style>
 body {
   margin:0;
-  font-family:Arial, sans-serif;
+  font-family:Arial,sans-serif;
   background:#2b2d31;
   color:white;
 }
@@ -144,43 +144,50 @@ let currentUsername = "";
 let currentChat = "global";
 let unsubscribe = null;
 
-/* ---------- LOGIN ---------- */
+/* ---------- LOGIN FLOW ---------- */
 async function enter(){
   const name = usernameInput.value.trim();
   if(!name){
     loginErr.innerText = "Username fehlt";
     return;
   }
-
   loginErr.innerText = "Verbinde…";
 
-  // ✅ ERST Auth (WICHTIG)
-  await auth.signInAnonymously();
-  currentUser = auth.currentUser;
+  try {
+    // ✅ ANONYMOUS LOGIN
+    const userCredential = await auth.signInAnonymously();
+    currentUser = userCredential.user;
 
-  // ✅ JETZT Firestore benutzen
-  const taken = await db.collection("users")
-    .where("username","==",name).get();
+    // ✅ Prüfen ob Username schon vergeben
+    const taken = await db.collection("users")
+      .where("username","==",name).get();
 
-  if(!taken.empty){
-    loginErr.innerText = "Username vergeben";
-    return;
+    if(!taken.empty){
+      loginErr.innerText = "Username vergeben";
+      return;
+    }
+
+    currentUsername = name;
+
+    // ✅ Speichern in Firestore
+    await db.collection("users").doc(currentUser.uid).set({
+      uid: currentUser.uid,
+      username: name,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // UI aktualisieren
+    login.style.display = "none";
+    app.style.display = "flex";
+    status.innerText = "🟢 Online als " + name;
+
+    // Chat laden
+    loadUsers();
+    openGlobal();
+  } catch(err){
+    console.error(err);
+    loginErr.innerText = "Fehler beim Verbinden, bitte neu laden.";
   }
-
-  currentUsername = name;
-
-  await db.collection("users").doc(currentUser.uid).set({
-    uid: currentUser.uid,
-    username: name,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-
-  login.style.display = "none";
-  app.style.display = "flex";
-  status.innerText = "🟢 Online als " + name;
-
-  loadUsers();
-  openGlobal();
 }
 
 /* ---------- CHAT ---------- */
