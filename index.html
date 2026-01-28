@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>enzae chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -11,7 +11,7 @@
 <style>
 body {
   margin:0;
-  font-family:Arial,sans-serif;
+  font-family:Arial, sans-serif;
   background:#2b2d31;
   color:white;
 }
@@ -28,37 +28,22 @@ input {
   border-radius:5px;
   border:none;
 }
-#login,#usernameBox,#settings {
+#login,#usernameBox {
   height:100vh;
   display:flex;
-  align-items:center;
   justify-content:center;
+  align-items:center;
   flex-direction:column;
 }
 #app {
-  display:none;
   height:100vh;
-  display:flex;
+  display:none;
 }
 #sidebar {
   width:240px;
   background:#1e1f22;
   padding:10px;
   overflow-y:auto;
-}
-.user {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  cursor:pointer;
-  padding:5px;
-  border-radius:5px;
-}
-.user:hover {background:#2b2d31}
-.avatar {
-  width:32px;
-  height:32px;
-  border-radius:50%;
 }
 #chat {
   flex:1;
@@ -78,8 +63,8 @@ input {
   margin-bottom:10px;
 }
 .msg img {
-  width:28px;
-  height:28px;
+  width:26px;
+  height:26px;
   border-radius:50%;
   vertical-align:middle;
 }
@@ -88,17 +73,25 @@ input {
   gap:5px;
   padding:10px;
 }
+.user {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px;
+  cursor:pointer;
+  border-radius:5px;
+}
+.user:hover {
+  background:#2b2d31;
+}
+.avatar {
+  width:32px;
+  height:32px;
+  border-radius:50%;
+}
 .small {
   font-size:12px;
   color:#aaa;
-}
-.badge {
-  background:red;
-  color:white;
-  padding:2px 6px;
-  border-radius:20px;
-  font-size:11px;
-  margin-left:auto;
 }
 </style>
 </head>
@@ -112,18 +105,9 @@ input {
 
 <div id="usernameBox" style="display:none">
   <h3>Username wählen</h3>
-  <input id="usernameInput" placeholder="username">
+  <input id="usernameInput" placeholder="Username">
   <button onclick="saveUsername()">Speichern</button>
   <p id="userErr" class="small"></p>
-</div>
-
-<div id="settings" style="display:none">
-  <h3>Settings</h3>
-  <input id="avatarInput" placeholder="Avatar URL">
-  <br><br>
-  <button onclick="saveSettings()">Speichern</button>
-  <br><br>
-  <button onclick="closeSettings()">Zurück</button>
 </div>
 
 <div id="app">
@@ -131,16 +115,15 @@ input {
     <b>Chats</b>
     <div class="user" onclick="openGlobal()"># global</div>
     <hr>
-    <b>DMs</b>
-    <div id="userList"></div>
+    <b>Private DMs</b>
+    <div id="userList" class="small">lädt…</div>
     <hr>
-    <div class="small" id="status"></div>
-    <button onclick="openSettings()">Settings</button>
+    <div id="status" class="small"></div>
     <button onclick="logout()">Logout</button>
   </div>
 
   <div id="chat">
-    <div id="top"></div>
+    <div id="top"># global</div>
     <div id="messages"></div>
     <div id="sendBox">
       <input id="msgInput" placeholder="Nachricht...">
@@ -160,28 +143,34 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-let currentUser, currentUserData;
+let currentUser;
+let currentUserData;
 let currentChat = "global";
-let unsub;
+let unsubscribe = null;
 
 auth.onAuthStateChanged(async user=>{
-  if(!user) return;
-
-  currentUser = user;
-  document.getElementById("login").style.display="none";
-
-  const uDoc = await db.collection("users").doc(user.uid).get();
-
-  if(!uDoc.exists){
-    document.getElementById("usernameBox").style.display="flex";
+  if(!user){
+    login.style.display="flex";
+    app.style.display="none";
     return;
   }
 
-  currentUserData = uDoc.data();
-  document.getElementById("app").style.display="flex";
-  document.getElementById("status").innerText="🟢 "+currentUserData.username;
+  currentUser = user;
+  login.style.display="none";
 
-  Notification.requestPermission();
+  const doc = await db.collection("users").doc(user.uid).get();
+
+  if(!doc.exists){
+    usernameBox.style.display="flex";
+    return;
+  }
+
+  currentUserData = doc.data();
+  usernameBox.style.display="none";
+  app.style.display="flex";
+  app.style.display="flex";
+  document.getElementById("status").innerText =
+    "🟢 Online als " + currentUserData.username;
 
   loadUsers();
   openGlobal();
@@ -190,15 +179,29 @@ auth.onAuthStateChanged(async user=>{
 function login(){
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 }
-function logout(){auth.signOut()}
+function logout(){
+  auth.signOut();
+}
 
 async function saveUsername(){
-  const name=usernameInput.value.trim();
+  const name = usernameInput.value.trim();
   if(!name) return;
+
+  const taken = await db.collection("users")
+    .where("username","==",name).get();
+
+  if(!taken.empty){
+    userErr.innerText="Name schon vergeben";
+    return;
+  }
+
   await db.collection("users").doc(currentUser.uid).set({
-    username:name,
-    avatar:currentUser.photoURL || "",
+    uid: currentUser.uid,
+    username: name,
+    avatar: currentUser.photoURL || "",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
+
   location.reload();
 }
 
@@ -213,19 +216,22 @@ function dmId(a,b){
 }
 
 function openDM(uid,username){
-  currentChat=dmId(currentUser.uid,uid);
-  top.innerText="DM mit "+username;
+  messages.innerHTML="";
+  currentChat = dmId(currentUser.uid, uid);
+  top.innerText="🔒 DM mit " + username;
   loadDM();
 }
 
 function send(){
-  if(!msgInput.value) return;
-  const data={
-    text:msgInput.value,
-    user:currentUserData.username,
-    uid:currentUser.uid,
-    avatar:currentUserData.avatar||"",
-    time:firebase.firestore.FieldValue.serverTimestamp()
+  const text = msgInput.value.trim();
+  if(!text) return;
+
+  const data = {
+    text,
+    user: currentUserData.username,
+    uid: currentUser.uid,
+    avatar: currentUserData.avatar || "",
+    time: firebase.firestore.FieldValue.serverTimestamp()
   };
 
   if(currentChat==="global"){
@@ -238,67 +244,59 @@ function send(){
 }
 
 function loadGlobal(){
-  unsub && unsub();
-  unsub=db.collection("messages").orderBy("time")
-    .onSnapshot(render);
+  unsubscribe && unsubscribe();
+  unsubscribe = db.collection("messages")
+    .orderBy("time")
+    .onSnapshot(renderMessages);
 }
 
 function loadDM(){
-  unsub && unsub();
-  unsub=db.collection("dms").doc(currentChat)
-    .collection("messages").orderBy("time")
-    .onSnapshot(render);
+  unsubscribe && unsubscribe();
+  unsubscribe = db.collection("dms")
+    .doc(currentChat)
+    .collection("messages")
+    .orderBy("time")
+    .onSnapshot(renderMessages);
 }
 
-function render(snap){
+function renderMessages(snap){
   messages.innerHTML="";
-  snap.forEach(d=>{
-    const m=d.data();
-    const div=document.createElement("div");
+  snap.forEach(doc=>{
+    const m = doc.data();
+    const div = document.createElement("div");
     div.className="msg";
-    div.innerHTML=`
-      <img src="${m.avatar||''}">
+    div.innerHTML = `
+      <img src="${m.avatar}">
       <b>${m.user}</b>: ${m.text}
     `;
     messages.appendChild(div);
   });
-  messages.scrollTop=messages.scrollHeight;
+  messages.scrollTop = messages.scrollHeight;
 }
 
 function loadUsers(){
   db.collection("users").onSnapshot(snap=>{
     userList.innerHTML="";
-    snap.forEach(d=>{
-      if(d.id===currentUser.uid) return;
-      const u=d.data();
+    let found=false;
+
+    snap.forEach(doc=>{
+      if(doc.id === currentUser.uid) return;
+      found=true;
+      const u = doc.data();
       const div=document.createElement("div");
       div.className="user";
-      div.innerHTML=`
-        <img class="avatar" src="${u.avatar||''}">
+      div.innerHTML = `
+        <img class="avatar" src="${u.avatar}">
         ${u.username}
       `;
-      div.onclick=()=>openDM(d.id,u.username);
+      div.onclick = ()=>openDM(doc.id, u.username);
       userList.appendChild(div);
     });
+
+    if(!found){
+      userList.innerHTML="<span class='small'>Keine anderen Nutzer</span>";
+    }
   });
-}
-
-function openSettings(){
-  app.style.display="none";
-  settings.style.display="flex";
-  avatarInput.value=currentUserData.avatar||"";
-}
-
-async function saveSettings(){
-  await db.collection("users").doc(currentUser.uid).update({
-    avatar:avatarInput.value
-  });
-  location.reload();
-}
-
-function closeSettings(){
-  settings.style.display="none";
-  app.style.display="flex";
 }
 </script>
 
