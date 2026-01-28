@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>enzae chat</title>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -11,46 +12,55 @@
 body{margin:0;font-family:Arial,sans-serif;background:#2b2d31;color:white;}
 button{padding:8px 12px;background:#5865f2;border:none;color:white;border-radius:5px;cursor:pointer;}
 input{padding:8px;border-radius:5px;border:none;}
-#login{height:100vh;display:flex;justify-content:center;align-items:center;flex-direction:column;}
-#app{height:100vh;display:none;flex-direction:row;}
+#login,#usernameBox{height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+#app{display:none;height:100vh;flex-direction:row;}
 #sidebar{width:240px;background:#1e1f22;padding:10px;overflow-y:auto;}
 #chat{flex:1;display:flex;flex-direction:column;}
-#top{background:#1e1f22;padding:10px;}
+#top{background:#1e1f22;padding:10px;display:flex;justify-content:space-between;}
 #messages{flex:1;padding:10px;overflow-y:auto;}
 .msg{margin-bottom:10px;}
 .avatar{width:28px;height:28px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;font-size:12px;margin-right:5px;}
 #sendBox{display:flex;gap:5px;padding:10px;}
+#sendBox input{flex:1;}
 .user{padding:6px;cursor:pointer;border-radius:5px;}
 .user:hover{background:#2b2d31;}
 .small{font-size:12px;color:#aaa;}
 </style>
 </head>
+
 <body>
 
 <div id="login">
   <h2>enzae</h2>
-  <input id="usernameInput" placeholder="Username">
-  <button onclick="enter()">Beitreten</button>
-  <p id="loginErr" class="small"></p>
+  <button onclick="login()">Mit Google anmelden</button>
+</div>
+
+<div id="usernameBox" style="display:none">
+  <h3>Username wählen</h3>
+  <input id="usernameInput" placeholder="username">
+  <button onclick="saveUsername()">Speichern</button>
+  <p id="userErr" class="small"></p>
 </div>
 
 <div id="app">
   <div id="sidebar">
-    <b>Chats</b>
+    <b>Chats</b><br>
     <div class="user" onclick="openGlobal()"># global</div>
     <hr>
     <b>Private DMs</b>
     <div id="userList" class="small">lädt…</div>
     <hr>
-    <div id="status" class="small"></div>
+    <div class="small" id="status"></div>
+    <button onclick="changeUsername()">Username ändern</button>
+    <button onclick="logout()">Logout</button>
   </div>
 
   <div id="chat">
-    <div id="top"># global</div>
+    <div id="top"># global-chat</div>
     <div id="messages"></div>
     <div id="sendBox">
       <input id="msgInput" placeholder="Nachricht...">
-      <button onclick="send()">Senden</button>
+      <button onclick="sendMessage()">Senden</button>
     </div>
   </div>
 </div>
@@ -59,62 +69,181 @@ input{padding:8px;border-radius:5px;border:none;}
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
   authDomain: "enzae-4134d.firebaseapp.com",
-  projectId: "enzae-4134d"
+  projectId: "enzae-4134d",
+  storageBucket: "enzae-4134d.firebasestorage.app",
+  messagingSenderId: "96676313807",
+  appId: "1:96676313807:web:57a7fdbe31c8cbe0ca55ba"
 };
+
 firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth();
-const db=firebase.firestore();
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-let currentUser=null;
-let currentUsername="";
-let currentChat="global";
-let unsubscribe=null;
+const loginDiv = document.getElementById("login");
+const appDiv = document.getElementById("app");
+const usernameBox = document.getElementById("usernameBox");
 
-// Funktion: Username eingeben -> App starten
-async function enter(){
-  const name=usernameInput.value.trim();
-  if(!name){loginErr.innerText="Username fehlt";return;}
-  loginErr.innerText="Verbinde…";
+let currentUser;
+let currentUsername;
+let currentChat = "global";
+let unsubscribe = null;
 
-  try{
-    // Anonymous Auth
-    const userCredential=await auth.signInAnonymously();
-    currentUser=userCredential.user;
-    currentUsername=name;
+// ----------------- AUTH STATE -----------------
+auth.onAuthStateChanged(async user=>{
+  if(!user){
+    loginDiv.style.display="flex";
+    appDiv.style.display="none";
+    usernameBox.style.display="none";
+    return;
+  }
+  currentUser=user;
+  loginDiv.style.display="none";
 
-    // Einfach direkt User speichern (keine Username-Abfrage)
-    await db.collection("users").doc(currentUser.uid).set({
-      uid:currentUser.uid,
-      username:name,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    login.style.display="none";
-    app.style.display="flex";
-    status.innerText="🟢 Online als "+name;
-
+  const doc = await db.collection("users").doc(user.uid).get();
+  if(!doc.exists || !doc.data().username){
+    usernameBox.style.display="flex";
+    appDiv.style.display="none";
+  } else {
+    currentUsername = doc.data().username;
+    usernameBox.style.display="none";
+    appDiv.style.display="flex";
+    document.getElementById("status").innerText = "🟢 Online als "+currentUsername;
+    setOnline();
+    loadMessages();
     loadUsers();
-    openGlobal();
-  }catch(err){
-    console.error(err);
-    loginErr.innerText="Fehler beim Verbinden!";
+  }
+});
+
+// ----------------- LOGIN -----------------
+function login(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+}
+
+function logout(){
+  auth.signOut();
+}
+
+// ----------------- USERNAME -----------------
+async function saveUsername(){
+  const name = document.getElementById("usernameInput").value.trim();
+  if(!name) return;
+
+  const taken = await db.collection("users").where("username","==",name).get();
+  if(!taken.empty){
+    document.getElementById("userErr").innerText="Name schon vergeben";
+    return;
+  }
+
+  await db.collection("users").doc(currentUser.uid).set({
+    username: name,
+    avatar: name[0].toUpperCase(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  location.reload();
+}
+
+function changeUsername(){
+  usernameBox.style.display="flex";
+  appDiv.style.display="none";
+}
+
+// ----------------- PRESENCE -----------------
+function setOnline(){
+  db.collection("presence").doc(currentUser.uid).set({
+    online:true,
+    last:firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// ----------------- MESSAGES -----------------
+function sendMessage(){
+  const text = msgInput.value.trim();
+  if(!text) return;
+
+  const msgData = {
+    text,
+    user: currentUsername,
+    uid: currentUser.uid,
+    time: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if(currentChat === "global"){
+    db.collection("messages").add(msgData);
+  } else {
+    db.collection("dms").doc(currentChat).collection("messages").add(msgData);
+  }
+
+  msgInput.value="";
+}
+
+function loadMessages(){
+  if(unsubscribe) unsubscribe();
+  let collectionRef = currentChat === "global" ? db.collection("messages") : db.collection("dms").doc(currentChat).collection("messages");
+  unsubscribe = collectionRef.orderBy("time").onSnapshot(snap=>{
+    messages.innerHTML="";
+    snap.forEach(doc=>{
+      const m = doc.data();
+      const div = document.createElement("div");
+      div.className="msg";
+      div.innerHTML = `<span class="avatar">${m.user[0].toUpperCase()}</span><b>${m.user}</b>: ${m.text}`;
+      messages.appendChild(div);
+    });
+    messages.scrollTop = messages.scrollHeight;
+  });
+}
+
+// ----------------- USERS / DMs -----------------
+function loadUsers(){
+  db.collection("users").onSnapshot(snap=>{
+    userList.innerHTML="";
+    let found=false;
+    snap.forEach(doc=>{
+      if(doc.id === currentUser.uid) return;
+      found=true;
+      const u = doc.data();
+      const div = document.createElement("div");
+      div.className="user";
+      div.innerText = u.username;
+      div.onclick = () => openDM(doc.id,u.username);
+      userList.appendChild(div);
+    });
+    if(!found) userList.innerText="Keine anderen Nutzer";
+  });
+}
+
+function dmId(a,b){
+  return [a,b].sort().join("_");
+}
+
+function openDM(uid,username){
+  messages.innerHTML="";
+  currentChat=dmId(currentUser.uid,uid);
+  top.innerText="🔒 DM mit "+username;
+  loadMessages();
+}
+
+// ----------------- NOTIFICATIONS -----------------
+function notify(message){
+  if(Notification.permission==="granted"){
+    new Notification(message);
+  } else if(Notification.permission!=="denied"){
+    Notification.requestPermission().then(p=>{
+      if(p==="granted") new Notification(message);
+    });
   }
 }
 
-// Global Chat
-function openGlobal(){currentChat="global";top.innerText="# global";loadGlobal();}
-function dmId(a,b){return [a,b].sort().join("_");}
-function openDM(uid,username){messages.innerHTML="";currentChat=dmId(currentUser.uid,uid);top.innerText="🔒 DM mit "+username;loadDM();}
-function send(){
-  const text=msgInput.value.trim();if(!text)return;
-  const data={text,user:currentUsername,uid:currentUser.uid,time:firebase.firestore.FieldValue.serverTimestamp()};
-  if(currentChat==="global"){db.collection("messages").add(data);}else{db.collection("dms").doc(currentChat).collection("messages").add(data);}
-  msgInput.value="";
-}
-function loadGlobal(){unsubscribe&&unsubscribe();unsubscribe=db.collection("messages").orderBy("time").onSnapshot(render);}
-function loadDM(){unsubscribe&&unsubscribe();unsubscribe=db.collection("dms").doc(currentChat).collection("messages").orderBy("time").onSnapshot(render);}
-function render(snap){messages.innerHTML="";snap.forEach(doc=>{const m=doc.data();const div=document.createElement("div");div.className="msg";div.innerHTML=`<span class="avatar">${m.user[0].toUpperCase()}</span><b>${m.user}</b>: ${m.text}`;messages.appendChild(div);});messages.scrollTop=messages.scrollHeight;}
-function loadUsers(){db.collection("users").onSnapshot(snap=>{userList.innerHTML="";let found=false;snap.forEach(doc=>{if(doc.id===currentUser.uid)return;found=true;const u=doc.data();const div=document.createElement("div");div.className="user";div.innerText=u.username;div.onclick=()=>openDM(doc.id,u.username);userList.appendChild(div);});if(!found)userList.innerText="Keine anderen Nutzer";});}
+// Beobachten neuer Nachrichten für Notifications
+db.collection("messages").orderBy("time").onSnapshot(snap=>{
+  snap.docChanges().forEach(change=>{
+    if(change.type==="added" && change.doc.data().uid !== (currentUser?.uid || "")){
+      notify(`${change.doc.data().user}: ${change.doc.data().text}`);
+    }
+  });
+});
+
 </script>
 
 </body>
