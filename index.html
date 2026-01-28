@@ -2,66 +2,43 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>enzae chat</title>
+<title>Enzae Chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#2b2d31;color:white;}
-button{padding:8px 12px;background:#5865f2;border:none;color:white;border-radius:5px;cursor:pointer;}
-input{padding:8px;border-radius:5px;border:none;}
-#login,#usernameBox{height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;}
-#app{display:none;height:100vh;flex-direction:row;}
-#sidebar{width:240px;background:#1e1f22;padding:10px;overflow-y:auto;}
-#chat{flex:1;display:flex;flex-direction:column;}
-#top{background:#1e1f22;padding:10px;display:flex;justify-content:space-between;}
-#messages{flex:1;padding:10px;overflow-y:auto;}
-.msg{margin-bottom:10px;}
-.avatar{width:28px;height:28px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;font-size:12px;margin-right:5px;}
-#sendBox{display:flex;gap:5px;padding:10px;}
-#sendBox input{flex:1;}
-.user{padding:6px;cursor:pointer;border-radius:5px;}
-.user:hover{background:#2b2d31;}
-.small{font-size:12px;color:#aaa;}
+body{margin:0;font-family:Arial;background:#111;color:#fff}
+#login,#usernameBox{display:flex;justify-content:center;align-items:center;height:100vh}
+#app{display:none;height:100vh}
+#chat{padding:10px;height:90vh;overflow-y:auto}
+.msg{margin:6px 0}
+input,button{padding:10px}
+#sendBox{display:flex;gap:6px}
 </style>
 </head>
 
 <body>
 
 <div id="login">
-  <h2>enzae</h2>
-  <button onclick="login()">Mit Google anmelden</button>
+  <button onclick="loginGoogle()">Mit Google anmelden</button>
 </div>
 
 <div id="usernameBox" style="display:none">
-  <h3>Username wählen</h3>
-  <input id="usernameInput" placeholder="username">
-  <button onclick="saveUsername()">Speichern</button>
-  <p id="userErr" class="small"></p>
+  <div>
+    <h3>Username setzen</h3>
+    <input id="usernameInput" placeholder="username">
+    <button onclick="saveUsername()">Speichern</button>
+  </div>
 </div>
 
 <div id="app">
-  <div id="sidebar">
-    <b>Chats</b><br>
-    <div class="user" onclick="openGlobal()"># global</div>
-    <hr>
-    <b>Private DMs</b>
-    <div id="userList" class="small">lädt…</div>
-    <hr>
-    <div class="small" id="status"></div>
-    <button onclick="changeUsername()">Username ändern</button>
-    <button onclick="logout()">Logout</button>
-  </div>
-
-  <div id="chat">
-    <div id="top"># global-chat</div>
-    <div id="messages"></div>
-    <div id="sendBox">
-      <input id="msgInput" placeholder="Nachricht...">
-      <button onclick="sendMessage()">Senden</button>
-    </div>
+  <h3 style="padding:10px">Enzae Chat</h3>
+  <div id="chat"></div>
+  <div id="sendBox">
+    <input id="msg" placeholder="Nachricht">
+    <button onclick="send()">Senden</button>
   </div>
 </div>
 
@@ -76,174 +53,77 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-const loginDiv = document.getElementById("login");
-const appDiv = document.getElementById("app");
+const login = document.getElementById("login");
+const app = document.getElementById("app");
 const usernameBox = document.getElementById("usernameBox");
+const chat = document.getElementById("chat");
 
-let currentUser;
-let currentUsername;
-let currentChat = "global";
-let unsubscribe = null;
+let user, username;
 
-// ----------------- AUTH STATE -----------------
-auth.onAuthStateChanged(async user=>{
-  if(!user){
-    loginDiv.style.display="flex";
-    appDiv.style.display="none";
-    usernameBox.style.display="none";
+function loginGoogle(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+}
+
+auth.onAuthStateChanged(async u=>{
+  if(!u){
+    login.style.display="flex";
+    app.style.display="none";
     return;
   }
-  currentUser=user;
-  loginDiv.style.display="none";
 
-  const doc = await db.collection("users").doc(user.uid).get();
+  user=u;
+  login.style.display="none";
+
+  const doc = await db.collection("users").doc(u.uid).get();
   if(!doc.exists || !doc.data().username){
     usernameBox.style.display="flex";
-    appDiv.style.display="none";
-  } else {
-    currentUsername = doc.data().username;
-    usernameBox.style.display="none";
-    appDiv.style.display="flex";
-    document.getElementById("status").innerText = "🟢 Online als "+currentUsername;
-    setOnline();
-    loadMessages();
-    loadUsers();
-  }
-});
-
-// ----------------- LOGIN -----------------
-function login(){
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider);
-}
-
-function logout(){
-  auth.signOut();
-}
-
-// ----------------- USERNAME -----------------
-async function saveUsername(){
-  const name = document.getElementById("usernameInput").value.trim();
-  if(!name) return;
-
-  const taken = await db.collection("users").where("username","==",name).get();
-  if(!taken.empty){
-    document.getElementById("userErr").innerText="Name schon vergeben";
+    app.style.display="none";
     return;
   }
 
-  await db.collection("users").doc(currentUser.uid).set({
-    username: name,
-    avatar: name[0].toUpperCase(),
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  username = doc.data().username;
+  usernameBox.style.display="none";
+  app.style.display="block";
+  loadMessages();
+});
 
+async function saveUsername(){
+  const name = document.getElementById("usernameInput").value;
+  if(!name) return;
+  await db.collection("users").doc(user.uid).set({username:name});
   location.reload();
 }
 
-function changeUsername(){
-  usernameBox.style.display="flex";
-  appDiv.style.display="none";
-}
-
-// ----------------- PRESENCE -----------------
-function setOnline(){
-  db.collection("presence").doc(currentUser.uid).set({
-    online:true,
-    last:firebase.firestore.FieldValue.serverTimestamp()
-  });
-}
-
-// ----------------- MESSAGES -----------------
-function sendMessage(){
-  const text = msgInput.value.trim();
+function send(){
+  const text = document.getElementById("msg").value;
   if(!text) return;
-
-  const msgData = {
+  db.collection("messages").add({
     text,
-    user: currentUsername,
-    uid: currentUser.uid,
+    user: username,
     time: firebase.firestore.FieldValue.serverTimestamp()
-  };
-
-  if(currentChat === "global"){
-    db.collection("messages").add(msgData);
-  } else {
-    db.collection("dms").doc(currentChat).collection("messages").add(msgData);
-  }
-
-  msgInput.value="";
+  });
+  document.getElementById("msg").value="";
 }
 
 function loadMessages(){
-  if(unsubscribe) unsubscribe();
-  let collectionRef = currentChat === "global" ? db.collection("messages") : db.collection("dms").doc(currentChat).collection("messages");
-  unsubscribe = collectionRef.orderBy("time").onSnapshot(snap=>{
-    messages.innerHTML="";
-    snap.forEach(doc=>{
-      const m = doc.data();
-      const div = document.createElement("div");
-      div.className="msg";
-      div.innerHTML = `<span class="avatar">${m.user[0].toUpperCase()}</span><b>${m.user}</b>: ${m.text}`;
-      messages.appendChild(div);
+  db.collection("messages")
+    .orderBy("time")
+    .onSnapshot(snap=>{
+      chat.innerHTML="";
+      snap.forEach(d=>{
+        const m=d.data();
+        const div=document.createElement("div");
+        div.className="msg";
+        div.textContent = m.user + ": " + m.text;
+        chat.appendChild(div);
+      });
+      chat.scrollTop = chat.scrollHeight;
     });
-    messages.scrollTop = messages.scrollHeight;
-  });
 }
-
-// ----------------- USERS / DMs -----------------
-function loadUsers(){
-  db.collection("users").onSnapshot(snap=>{
-    userList.innerHTML="";
-    let found=false;
-    snap.forEach(doc=>{
-      if(doc.id === currentUser.uid) return;
-      found=true;
-      const u = doc.data();
-      const div = document.createElement("div");
-      div.className="user";
-      div.innerText = u.username;
-      div.onclick = () => openDM(doc.id,u.username);
-      userList.appendChild(div);
-    });
-    if(!found) userList.innerText="Keine anderen Nutzer";
-  });
-}
-
-function dmId(a,b){
-  return [a,b].sort().join("_");
-}
-
-function openDM(uid,username){
-  messages.innerHTML="";
-  currentChat=dmId(currentUser.uid,uid);
-  top.innerText="🔒 DM mit "+username;
-  loadMessages();
-}
-
-// ----------------- NOTIFICATIONS -----------------
-function notify(message){
-  if(Notification.permission==="granted"){
-    new Notification(message);
-  } else if(Notification.permission!=="denied"){
-    Notification.requestPermission().then(p=>{
-      if(p==="granted") new Notification(message);
-    });
-  }
-}
-
-// Beobachten neuer Nachrichten für Notifications
-db.collection("messages").orderBy("time").onSnapshot(snap=>{
-  snap.docChanges().forEach(change=>{
-    if(change.type==="added" && change.doc.data().uid !== (currentUser?.uid || "")){
-      notify(`${change.doc.data().user}: ${change.doc.data().text}`);
-    }
-  });
-});
-
 </script>
 
 </body>
