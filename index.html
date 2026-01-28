@@ -5,7 +5,6 @@
 <title>enzae chat</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
@@ -28,16 +27,17 @@ input {
   border-radius:5px;
   border:none;
 }
-#login,#usernameBox {
+#login {
   height:100vh;
   display:flex;
-  justify-content:center;
   align-items:center;
+  justify-content:center;
   flex-direction:column;
 }
 #app {
   height:100vh;
   display:none;
+  flex-direction:row;
 }
 #sidebar {
   width:240px;
@@ -62,11 +62,16 @@ input {
 .msg {
   margin-bottom:10px;
 }
-.msg img {
-  width:26px;
-  height:26px;
+.avatar {
+  width:28px;
+  height:28px;
   border-radius:50%;
-  vertical-align:middle;
+  background:#5865f2;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  margin-right:5px;
 }
 #sendBox {
   display:flex;
@@ -74,20 +79,12 @@ input {
   padding:10px;
 }
 .user {
-  display:flex;
-  align-items:center;
-  gap:8px;
   padding:6px;
   cursor:pointer;
   border-radius:5px;
 }
 .user:hover {
   background:#2b2d31;
-}
-.avatar {
-  width:32px;
-  height:32px;
-  border-radius:50%;
 }
 .small {
   font-size:12px;
@@ -100,14 +97,9 @@ input {
 
 <div id="login">
   <h2>enzae</h2>
-  <button onclick="login()">Mit Google anmelden</button>
-</div>
-
-<div id="usernameBox" style="display:none">
-  <h3>Username wählen</h3>
   <input id="usernameInput" placeholder="Username">
-  <button onclick="saveUsername()">Speichern</button>
-  <p id="userErr" class="small"></p>
+  <button onclick="enter()">Beitreten</button>
+  <p id="loginErr" class="small"></p>
 </div>
 
 <div id="app">
@@ -119,7 +111,6 @@ input {
     <div id="userList" class="small">lädt…</div>
     <hr>
     <div id="status" class="small"></div>
-    <button onclick="logout()">Logout</button>
   </div>
 
   <div id="chat">
@@ -135,75 +126,51 @@ input {
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
-  authDomain: "enzae-4134d.firebaseapp.com",
   projectId: "enzae-4134d"
 };
 firebase.initializeApp(firebaseConfig);
 
-const auth = firebase.auth();
 const db = firebase.firestore();
 
-let currentUser;
-let currentUserData;
+let currentUser = null;
 let currentChat = "global";
 let unsubscribe = null;
 
-auth.onAuthStateChanged(async user=>{
-  if(!user){
-    login.style.display="flex";
-    app.style.display="none";
-    return;
-  }
-
-  currentUser = user;
-  login.style.display="none";
-
-  const doc = await db.collection("users").doc(user.uid).get();
-
-  if(!doc.exists){
-    usernameBox.style.display="flex";
-    return;
-  }
-
-  currentUserData = doc.data();
-  usernameBox.style.display="none";
-  app.style.display="flex";
-  app.style.display="flex";
-  document.getElementById("status").innerText =
-    "🟢 Online als " + currentUserData.username;
-
-  loadUsers();
-  openGlobal();
-});
-
-function login(){
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-}
-function logout(){
-  auth.signOut();
-}
-
-async function saveUsername(){
+/* ---------- LOGIN ---------- */
+async function enter(){
   const name = usernameInput.value.trim();
-  if(!name) return;
+  if(!name){
+    loginErr.innerText="Username fehlt";
+    return;
+  }
 
   const taken = await db.collection("users")
     .where("username","==",name).get();
 
   if(!taken.empty){
-    userErr.innerText="Name schon vergeben";
+    loginErr.innerText="Username vergeben";
     return;
   }
 
-  await db.collection("users").doc(currentUser.uid).set({
-    uid: currentUser.uid,
+  currentUser = {
+    id: crypto.randomUUID(),
+    username: name
+  };
+
+  await db.collection("users").doc(currentUser.id).set({
     username: name,
-    avatar: currentUser.photoURL || "",
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  location.reload();
+  login.style.display="none";
+  app.style.display="flex";
+  status.innerText="🟢 Online als " + name;
+
+  loadUsers();
+  openGlobal();
 }
+
+/* ---------- CHAT ---------- */
 
 function openGlobal(){
   currentChat="global";
@@ -215,9 +182,9 @@ function dmId(a,b){
   return [a,b].sort().join("_");
 }
 
-function openDM(uid,username){
+function openDM(uid, username){
   messages.innerHTML="";
-  currentChat = dmId(currentUser.uid, uid);
+  currentChat = dmId(currentUser.id, uid);
   top.innerText="🔒 DM mit " + username;
   loadDM();
 }
@@ -228,17 +195,18 @@ function send(){
 
   const data = {
     text,
-    user: currentUserData.username,
-    uid: currentUser.uid,
-    avatar: currentUserData.avatar || "",
+    user: currentUser.username,
+    uid: currentUser.id,
     time: firebase.firestore.FieldValue.serverTimestamp()
   };
 
   if(currentChat==="global"){
     db.collection("messages").add(data);
   } else {
-    db.collection("dms").doc(currentChat)
-      .collection("messages").add(data);
+    db.collection("dms")
+      .doc(currentChat)
+      .collection("messages")
+      .add(data);
   }
   msgInput.value="";
 }
@@ -247,7 +215,7 @@ function loadGlobal(){
   unsubscribe && unsubscribe();
   unsubscribe = db.collection("messages")
     .orderBy("time")
-    .onSnapshot(renderMessages);
+    .onSnapshot(render);
 }
 
 function loadDM(){
@@ -256,17 +224,18 @@ function loadDM(){
     .doc(currentChat)
     .collection("messages")
     .orderBy("time")
-    .onSnapshot(renderMessages);
+    .onSnapshot(render);
 }
 
-function renderMessages(snap){
+function render(snap){
   messages.innerHTML="";
   snap.forEach(doc=>{
     const m = doc.data();
     const div = document.createElement("div");
     div.className="msg";
+    const initial = m.user[0].toUpperCase();
     div.innerHTML = `
-      <img src="${m.avatar}">
+      <span class="avatar">${initial}</span>
       <b>${m.user}</b>: ${m.text}
     `;
     messages.appendChild(div);
@@ -274,27 +243,26 @@ function renderMessages(snap){
   messages.scrollTop = messages.scrollHeight;
 }
 
+/* ---------- USERS / DMs ---------- */
+
 function loadUsers(){
   db.collection("users").onSnapshot(snap=>{
     userList.innerHTML="";
     let found=false;
 
     snap.forEach(doc=>{
-      if(doc.id === currentUser.uid) return;
+      if(doc.id===currentUser.id) return;
       found=true;
       const u = doc.data();
-      const div=document.createElement("div");
+      const div = document.createElement("div");
       div.className="user";
-      div.innerHTML = `
-        <img class="avatar" src="${u.avatar}">
-        ${u.username}
-      `;
-      div.onclick = ()=>openDM(doc.id, u.username);
+      div.innerText=u.username;
+      div.onclick=()=>openDM(doc.id, u.username);
       userList.appendChild(div);
     });
 
     if(!found){
-      userList.innerHTML="<span class='small'>Keine anderen Nutzer</span>";
+      userList.innerHTML="Keine anderen Nutzer";
     }
   });
 }
