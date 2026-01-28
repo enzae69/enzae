@@ -96,7 +96,6 @@ input {
 
 <body>
 
-<!-- LOGIN -->
 <div id="login">
   <h2>enzae</h2>
   <input id="usernameInput" placeholder="Username">
@@ -104,7 +103,6 @@ input {
   <p id="loginErr" class="small"></p>
 </div>
 
-<!-- APP -->
 <div id="app">
   <div id="sidebar">
     <b>Chats</b>
@@ -138,13 +136,12 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-/* ---------- STATE ---------- */
 let currentUser = null;
 let currentUsername = "";
 let currentChat = "global";
 let unsubscribe = null;
 
-/* ---------- LOGIN FLOW ---------- */
+/* ---------- LOGIN ---------- */
 async function enter(){
   const name = usernameInput.value.trim();
   if(!name){
@@ -154,11 +151,11 @@ async function enter(){
   loginErr.innerText = "Verbinde…";
 
   try {
-    // ✅ ANONYMOUS LOGIN
+    // Anonymous Login
     const userCredential = await auth.signInAnonymously();
     currentUser = userCredential.user;
 
-    // ✅ Prüfen ob Username schon vergeben
+    // Check ob Username vergeben
     const taken = await db.collection("users")
       .where("username","==",name).get();
 
@@ -169,24 +166,25 @@ async function enter(){
 
     currentUsername = name;
 
-    // ✅ Speichern in Firestore
+    // Speichern in Firestore
     await db.collection("users").doc(currentUser.uid).set({
       uid: currentUser.uid,
       username: name,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    // UI aktualisieren
+    // UI
     login.style.display = "none";
     app.style.display = "flex";
     status.innerText = "🟢 Online als " + name;
 
-    // Chat laden
+    // Laden
     loadUsers();
     openGlobal();
+
   } catch(err){
     console.error(err);
-    loginErr.innerText = "Fehler beim Verbinden, bitte neu laden.";
+    loginErr.innerText = "Fehler beim Verbinden – überprüfe Firestore Regeln!";
   }
 }
 
@@ -222,30 +220,20 @@ function send(){
   if(currentChat === "global"){
     db.collection("messages").add(data);
   } else {
-    db.collection("dms")
-      .doc(currentChat)
-      .collection("messages")
-      .add(data);
+    db.collection("dms").doc(currentChat).collection("messages").add(data);
   }
 
   msgInput.value = "";
 }
 
-/* ---------- LOADERS ---------- */
 function loadGlobal(){
   unsubscribe && unsubscribe();
-  unsubscribe = db.collection("messages")
-    .orderBy("time")
-    .onSnapshot(render);
+  unsubscribe = db.collection("messages").orderBy("time").onSnapshot(render);
 }
 
 function loadDM(){
   unsubscribe && unsubscribe();
-  unsubscribe = db.collection("dms")
-    .doc(currentChat)
-    .collection("messages")
-    .orderBy("time")
-    .onSnapshot(render);
+  unsubscribe = db.collection("dms").doc(currentChat).collection("messages").orderBy("time").onSnapshot(render);
 }
 
 function render(snap){
@@ -254,24 +242,19 @@ function render(snap){
     const m = doc.data();
     const div = document.createElement("div");
     div.className = "msg";
-    div.innerHTML = `
-      <span class="avatar">${m.user[0].toUpperCase()}</span>
-      <b>${m.user}</b>: ${m.text}
-    `;
+    div.innerHTML = `<span class="avatar">${m.user[0].toUpperCase()}</span><b>${m.user}</b>: ${m.text}`;
     messages.appendChild(div);
   });
   messages.scrollTop = messages.scrollHeight;
 }
 
-/* ---------- USERS ---------- */
 function loadUsers(){
   db.collection("users").onSnapshot(snap=>{
     userList.innerHTML = "";
-    let found=false;
-
+    let found = false;
     snap.forEach(doc=>{
       if(doc.id === currentUser.uid) return;
-      found=true;
+      found = true;
       const u = doc.data();
       const div = document.createElement("div");
       div.className = "user";
@@ -279,10 +262,7 @@ function loadUsers(){
       div.onclick = () => openDM(doc.id, u.username);
       userList.appendChild(div);
     });
-
-    if(!found){
-      userList.innerHTML = "Keine anderen Nutzer";
-    }
+    if(!found) userList.innerText = "Keine anderen Nutzer";
   });
 }
 </script>
