@@ -2,49 +2,104 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Enzae Chat mit Bildern</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enzae Chat</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <style>
-    body { margin:0; font-family:Arial; background:#111; color:#fff; }
-    #login, #usernameBox { display:flex; justify-content:center; align-items:center; height:100vh; }
-    #app { display:none; height:100vh; flex-direction:column; }
-    #chat { padding:10px; flex:1; overflow-y:auto; }
-    .msg { margin:8px 0; padding:8px; border-radius:8px; max-width:80%; }
-    .msg.user-me   { background:#0066ff; align-self:flex-end; margin-left:auto; }
-    .msg.user-other{ background:#333; }
-    img.chat-img   { max-width:240px; border-radius:8px; margin-top:6px; display:block; }
-    #sendBox { display:flex; gap:6px; padding:10px; background:#222; }
-    input, button { padding:10px; }
-    #file { display:none; }
-    #preview { max-height:120px; margin:6px; display:none; }
+    :root {
+      --bg: #111;
+      --text: #eee;
+      --msg-own: #0066ff;
+      --msg-other: #333;
+      --input: #222;
+      --border: #444;
+    }
+    [data-theme="light"] {
+      --bg: #f0f2f5;
+      --text: #111;
+      --msg-own: #0084ff;
+      --msg-other: #e5e5ea;
+      --input: #fff;
+      --border: #ddd;
+    }
+    body {
+      margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); height: 100vh; overflow: hidden;
+    }
+    #login, #usernameBox {
+      display: flex; justify-content: center; align-items: center; height: 100vh; padding: 20px;
+    }
+    #app {
+      display: none; height: 100vh; flex-direction: column;
+    }
+    header {
+      padding: 12px 16px; background: var(--input); border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #chat {
+      flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .msg {
+      margin: 6px 0; padding: 10px 14px; border-radius: 18px; max-width: 78%;
+      word-wrap: break-word; font-size: 15.5px; line-height: 1.35;
+    }
+    .msg.own   { background: var(--msg-own);   color: white; align-self: flex-end; margin-left: auto; }
+    .msg.other { background: var(--msg-other); color: var(--text); align-self: flex-start; }
+    .msg img   { max-width: 240px; border-radius: 12px; margin-top: 6px; display: block; }
+    .time      { font-size: 11px; opacity: 0.7; margin-top: 3px; text-align: right; }
+    #sendBox {
+      display: flex; padding: 10px 12px; background: var(--input); border-top: 1px solid var(--border); gap: 8px;
+      align-items: center;
+    }
+    #msg {
+      flex: 1; padding: 12px 16px; border-radius: 24px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 16px;
+    }
+    button, label {
+      padding: 12px; border-radius: 50%; background: var(--border); color: var(--text);
+      font-size: 18px; cursor: pointer; border: none; width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #file { display: none; }
+    #preview { max-height: 100px; border-radius: 8px; margin: 0 8px; display: none; }
+    #themeToggle { font-size: 20px; }
+
+    @media (max-width: 500px) {
+      .msg { max-width: 82%; }
+      #msg { font-size: 15.5px; }
+    }
   </style>
 </head>
-<body>
+<body data-theme="dark">
 
 <div id="login">
   <button onclick="loginGoogle()">Mit Google anmelden</button>
 </div>
 
-<div id="usernameBox" style="display:none">
-  <div>
-    <h3>Username setzen</h3>
-    <input id="usernameInput" placeholder="Dein Username">
-    <button onclick="saveUsername()">Speichern</button>
-  </div>
+<div id="usernameBox" style="display:none; text-align:center;">
+  <h3>Username wählen</h3>
+  <input id="usernameInput" placeholder="Dein Name..." style="width:90%; max-width:320px; padding:14px; font-size:16px;">
+  <br><br>
+  <button onclick="saveUsername()" style="padding:14px 32px; font-size:16px;">Speichern</button>
 </div>
 
 <div id="app">
-  <h3 style="padding:10px; margin:0; background:#222">Enzae Chat</h3>
+  <header>
+    <h3 style="margin:0;">Enzae Chat</h3>
+    <button id="themeToggle" onclick="toggleTheme()">☀️</button>
+  </header>
+
   <div id="chat"></div>
+
   <div id="sendBox">
-    <input id="msg" placeholder="Nachricht ...">
-    <label for="file" style="cursor:pointer; background:#444; padding:10px; border-radius:4px">📎</label>
+    <input id="msg" placeholder="Nachricht schreiben...">
+    <label for="file" title="Bild auswählen">📎</label>
     <input type="file" id="file" accept="image/*">
     <img id="preview" alt="Vorschau">
-    <button onclick="sendMessage()">Senden</button>
+    <button onclick="sendMessage()">➤</button>
   </div>
 </div>
 
@@ -65,64 +120,84 @@ const storage = firebase.storage();
 
 let user, username, selectedFile = null;
 
-const loginDiv     = document.getElementById("login");
-const appDiv       = document.getElementById("app");
-const usernameDiv  = document.getElementById("usernameBox");
-const chatDiv      = document.getElementById("chat");
-const msgInput     = document.getElementById("msg");
-const fileInput    = document.getElementById("file");
-const previewImg   = document.getElementById("preview");
+const app = document.getElementById("app");
+const login = document.getElementById("login");
+const usernameBox = document.getElementById("usernameBox");
+const chat = document.getElementById("chat");
+const msgInput = document.getElementById("msg");
+const fileInput = document.getElementById("file");
+const preview = document.getElementById("preview");
 
-// ── Login ────────────────────────────────────────
+// Theme
+function toggleTheme() {
+  const current = document.body.dataset.theme;
+  const next = current === "light" ? "dark" : "light";
+  document.body.dataset.theme = next;
+  localStorage.setItem("theme", next);
+  document.getElementById("themeToggle").textContent = next === "light" ? "☀️" : "🌙";
+}
+
+const savedTheme = localStorage.getItem("theme") || "dark";
+document.body.dataset.theme = savedTheme;
+document.getElementById("themeToggle").textContent = savedTheme === "light" ? "☀️" : "🌙";
+
+// ── Auth ────────────────────────────────────────
 function loginGoogle() {
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(err => alert("Login fehlgeschlagen: " + err.message));
 }
 
 auth.onAuthStateChanged(async u => {
   if (!u) {
-    loginDiv.style.display = "flex";
-    appDiv.style.display = "none";
-    usernameDiv.style.display = "none";
+    login.style.display = "flex";
+    app.style.display = usernameBox.style.display = "none";
     return;
   }
 
   user = u;
-  loginDiv.style.display = "none";
+  login.style.display = "none";
 
-  const doc = await db.collection("users").doc(u.uid).get();
-  if (!doc.exists || !doc.data().username) {
-    usernameDiv.style.display = "flex";
-    appDiv.style.display = "none";
+  const doc = await db.collection("users").doc(u.uid).get().catch(() => null);
+  if (!doc?.exists || !doc.data()?.username) {
+    usernameBox.style.display = "flex";
+    app.style.display = "none";
     return;
   }
 
   username = doc.data().username;
-  usernameDiv.style.display = "none";
-  appDiv.style.display = "flex";
+  usernameBox.style.display = "none";
+  app.style.display = "flex";
   loadMessages();
 });
 
 async function saveUsername() {
   const name = document.getElementById("usernameInput").value.trim();
-  if (!name) return alert("Bitte Username eingeben");
-  await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
-  location.reload();
+  if (name.length < 2) return alert("Mindestens 2 Zeichen");
+  try {
+    await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
+    location.reload();
+  } catch (e) {
+    alert("Fehler: " + e.message);
+  }
 }
 
-// ── Bild auswählen + Vorschau ────────────────────
-fileInput.addEventListener("change", e => {
+// ── Bild Vorschau ───────────────────────────────
+fileInput.onchange = e => {
   selectedFile = e.target.files[0];
-  if (!selectedFile) return;
-
+  if (!selectedFile?.type.startsWith("image/")) {
+    alert("Nur Bilder erlaubt");
+    selectedFile = null;
+    return;
+  }
   const reader = new FileReader();
   reader.onload = ev => {
-    previewImg.src = ev.target.result;
-    previewImg.style.display = "block";
+    preview.src = ev.target.result;
+    preview.style.display = "block";
   };
   reader.readAsDataURL(selectedFile);
-});
+};
 
-// ── Nachricht / Bild senden ──────────────────────
+// ── Nachricht + Bild senden ─────────────────────
 async function sendMessage() {
   const text = msgInput.value.trim();
 
@@ -130,62 +205,69 @@ async function sendMessage() {
 
   let imageUrl = null;
 
-  // 1. Bild hochladen (falls vorhanden)
   if (selectedFile) {
     try {
-      const ext = selectedFile.name.split('.').pop();
+      const ext = selectedFile.name.split('.').pop().toLowerCase() || "jpg";
       const path = `chat-images/${user.uid}/${Date.now()}.${ext}`;
-      const ref = storage.ref().child(path);
-      
+      const ref = storage.ref(path);
+
       await ref.put(selectedFile);
       imageUrl = await ref.getDownloadURL();
     } catch (err) {
       console.error(err);
-      alert("Bild-Upload fehlgeschlagen 😢");
+      alert("Bild-Upload fehlgeschlagen:\n" + err.message);
       return;
     }
   }
 
-  // 2. Nachricht in Firestore speichern
   try {
     await db.collection("messages").add({
       text: text || "",
       imageUrl: imageUrl || null,
       user: username,
-      uid: user.uid,           // für spätere "me"-Styling
+      uid: user.uid,
       time: firebase.firestore.FieldValue.serverTimestamp()
     });
 
     msgInput.value = "";
     fileInput.value = "";
     selectedFile = null;
-    previewImg.style.display = "none";
+    preview.style.display = "none";
   } catch (err) {
-    console.error(err);
-    alert("Nachricht konnte nicht gesendet werden");
+    alert("Senden fehlgeschlagen: " + err.message);
   }
 }
 
-// ── Nachrichten live laden ───────────────────────
+// ── Nachrichten laden ───────────────────────────
 function loadMessages() {
   db.collection("messages")
     .orderBy("time")
     .onSnapshot(snap => {
-      chatDiv.innerHTML = "";
+      chat.innerHTML = "";
       snap.forEach(doc => {
         const m = doc.data();
-        const div = document.createElement("div");
-        div.className = `msg ${m.uid === user?.uid ? "user-me" : "user-other"}`;
+        const isOwn = m.uid === user?.uid;
 
-        let content = `<strong>${m.user}:</strong> ${m.text}`;
-        if (m.imageUrl) {
-          content += `<br><img class="chat-img" src="${m.imageUrl}" alt="Bild">`;
+        const div = document.createElement("div");
+        div.className = `msg ${isOwn ? "own" : "other"}`;
+
+        let html = `<strong>${m.user}</strong>`;
+        if (m.text) html += `<div>${m.text}</div>`;
+        if (m.imageUrl) html += `<img src="${m.imageUrl}" alt="Bild">`;
+
+        if (m.time) {
+          const date = m.time.toDate ? m.time.toDate() : new Date(m.time);
+          const timeStr = date.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+          html += `<div class="time">${timeStr}</div>`;
         }
 
-        div.innerHTML = content;
-        chatDiv.appendChild(div);
+        div.innerHTML = html;
+        chat.appendChild(div);
       });
-      chatDiv.scrollTop = chatDiv.scrollHeight;
+      chat.scrollTop = chat.scrollHeight;
+    }, err => {
+      console.error(err);
+      chat.innerHTML += `<div style="color:#f55">Fehler beim Laden: ${err.message}</div>`;
     });
 }
 </script>
