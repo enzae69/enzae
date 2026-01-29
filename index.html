@@ -1,24 +1,27 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>Enzae Chat</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<style>
-body{margin:0;font-family:Arial;background:#111;color:#fff}
-#login,#usernameBox{display:flex;justify-content:center;align-items:center;height:100vh}
-#app{display:none;height:100vh}
-#chat{padding:10px;height:90vh;overflow-y:auto}
-.msg{margin:6px 0}
-input,button{padding:10px}
-#sendBox{display:flex;gap:6px}
-</style>
+  <meta charset="UTF-8">
+  <title>Enzae Chat mit Bildern</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <style>
+    body { margin:0; font-family:Arial; background:#111; color:#fff; }
+    #login, #usernameBox { display:flex; justify-content:center; align-items:center; height:100vh; }
+    #app { display:none; height:100vh; flex-direction:column; }
+    #chat { padding:10px; flex:1; overflow-y:auto; }
+    .msg { margin:8px 0; padding:8px; border-radius:8px; max-width:80%; }
+    .msg.user-me   { background:#0066ff; align-self:flex-end; margin-left:auto; }
+    .msg.user-other{ background:#333; }
+    img.chat-img   { max-width:240px; border-radius:8px; margin-top:6px; display:block; }
+    #sendBox { display:flex; gap:6px; padding:10px; background:#222; }
+    input, button { padding:10px; }
+    #file { display:none; }
+    #preview { max-height:120px; margin:6px; display:none; }
+  </style>
 </head>
-
 <body>
 
 <div id="login">
@@ -28,17 +31,20 @@ input,button{padding:10px}
 <div id="usernameBox" style="display:none">
   <div>
     <h3>Username setzen</h3>
-    <input id="usernameInput" placeholder="username">
+    <input id="usernameInput" placeholder="Dein Username">
     <button onclick="saveUsername()">Speichern</button>
   </div>
 </div>
 
 <div id="app">
-  <h3 style="padding:10px">Enzae Chat</h3>
+  <h3 style="padding:10px; margin:0; background:#222">Enzae Chat</h3>
   <div id="chat"></div>
   <div id="sendBox">
-    <input id="msg" placeholder="Nachricht">
-    <button onclick="send()">Senden</button>
+    <input id="msg" placeholder="Nachricht ...">
+    <label for="file" style="cursor:pointer; background:#444; padding:10px; border-radius:4px">📎</label>
+    <input type="file" id="file" accept="image/*">
+    <img id="preview" alt="Vorschau">
+    <button onclick="sendMessage()">Senden</button>
   </div>
 </div>
 
@@ -53,78 +59,135 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
-const login = document.getElementById("login");
-const app = document.getElementById("app");
-const usernameBox = document.getElementById("usernameBox");
-const chat = document.getElementById("chat");
+let user, username, selectedFile = null;
 
-let user, username;
+const loginDiv     = document.getElementById("login");
+const appDiv       = document.getElementById("app");
+const usernameDiv  = document.getElementById("usernameBox");
+const chatDiv      = document.getElementById("chat");
+const msgInput     = document.getElementById("msg");
+const fileInput    = document.getElementById("file");
+const previewImg   = document.getElementById("preview");
 
-function loginGoogle(){
+// ── Login ────────────────────────────────────────
+function loginGoogle() {
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 }
 
-auth.onAuthStateChanged(async u=>{
-  if(!u){
-    login.style.display="flex";
-    app.style.display="none";
+auth.onAuthStateChanged(async u => {
+  if (!u) {
+    loginDiv.style.display = "flex";
+    appDiv.style.display = "none";
+    usernameDiv.style.display = "none";
     return;
   }
 
-  user=u;
-  login.style.display="none";
+  user = u;
+  loginDiv.style.display = "none";
 
   const doc = await db.collection("users").doc(u.uid).get();
-  if(!doc.exists || !doc.data().username){
-    usernameBox.style.display="flex";
-    app.style.display="none";
+  if (!doc.exists || !doc.data().username) {
+    usernameDiv.style.display = "flex";
+    appDiv.style.display = "none";
     return;
   }
 
   username = doc.data().username;
-  usernameBox.style.display="none";
-  app.style.display="block";
+  usernameDiv.style.display = "none";
+  appDiv.style.display = "flex";
   loadMessages();
 });
 
-async function saveUsername(){
-  const name = document.getElementById("usernameInput").value;
-  if(!name) return;
-  await db.collection("users").doc(user.uid).set({username:name});
+async function saveUsername() {
+  const name = document.getElementById("usernameInput").value.trim();
+  if (!name) return alert("Bitte Username eingeben");
+  await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
   location.reload();
 }
 
-function send(){
-  const text = document.getElementById("msg").value;
-  if(!text) return;
-  db.collection("messages").add({
-    text,
-    user: username,
-    time: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  document.getElementById("msg").value="";
+// ── Bild auswählen + Vorschau ────────────────────
+fileInput.addEventListener("change", e => {
+  selectedFile = e.target.files[0];
+  if (!selectedFile) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    previewImg.src = ev.target.result;
+    previewImg.style.display = "block";
+  };
+  reader.readAsDataURL(selectedFile);
+});
+
+// ── Nachricht / Bild senden ──────────────────────
+async function sendMessage() {
+  const text = msgInput.value.trim();
+
+  if (!text && !selectedFile) return;
+
+  let imageUrl = null;
+
+  // 1. Bild hochladen (falls vorhanden)
+  if (selectedFile) {
+    try {
+      const ext = selectedFile.name.split('.').pop();
+      const path = `chat-images/${user.uid}/${Date.now()}.${ext}`;
+      const ref = storage.ref().child(path);
+      
+      await ref.put(selectedFile);
+      imageUrl = await ref.getDownloadURL();
+    } catch (err) {
+      console.error(err);
+      alert("Bild-Upload fehlgeschlagen 😢");
+      return;
+    }
+  }
+
+  // 2. Nachricht in Firestore speichern
+  try {
+    await db.collection("messages").add({
+      text: text || "",
+      imageUrl: imageUrl || null,
+      user: username,
+      uid: user.uid,           // für spätere "me"-Styling
+      time: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    msgInput.value = "";
+    fileInput.value = "";
+    selectedFile = null;
+    previewImg.style.display = "none";
+  } catch (err) {
+    console.error(err);
+    alert("Nachricht konnte nicht gesendet werden");
+  }
 }
 
-function loadMessages(){
+// ── Nachrichten live laden ───────────────────────
+function loadMessages() {
   db.collection("messages")
     .orderBy("time")
-    .onSnapshot(snap=>{
-      chat.innerHTML="";
-      snap.forEach(d=>{
-        const m=d.data();
-        const div=document.createElement("div");
-        div.className="msg";
-        div.textContent = m.user + ": " + m.text;
-        chat.appendChild(div);
+    .onSnapshot(snap => {
+      chatDiv.innerHTML = "";
+      snap.forEach(doc => {
+        const m = doc.data();
+        const div = document.createElement("div");
+        div.className = `msg ${m.uid === user?.uid ? "user-me" : "user-other"}`;
+
+        let content = `<strong>${m.user}:</strong> ${m.text}`;
+        if (m.imageUrl) {
+          content += `<br><img class="chat-img" src="${m.imageUrl}" alt="Bild">`;
+        }
+
+        div.innerHTML = content;
+        chatDiv.appendChild(div);
       });
-      chat.scrollTop = chat.scrollHeight;
+      chatDiv.scrollTop = chatDiv.scrollHeight;
     });
 }
 </script>
-
 </body>
 </html>
