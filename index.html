@@ -29,7 +29,7 @@
     }
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       height: 100dvh;
@@ -55,7 +55,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       cursor: pointer;
     }
-    #usernameBox input {
+    input[type="text"] {
       width: 100%;
       max-width: 400px;
       padding: 18px;
@@ -86,7 +86,7 @@
       padding: 18px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
     .msg {
       max-width: 80%;
@@ -120,7 +120,7 @@
       color: var(--text);
       min-height: 48px;
     }
-    .send-btn, label.camera-btn, label.file-btn {
+    .btn {
       width: 48px;
       height: 48px;
       border-radius: 50%;
@@ -135,9 +135,6 @@
     }
     #file, #camera { display: none; }
     #preview { max-height: 90px; border-radius: 12px; display: none; margin: 0 10px; }
-    @media (max-width: 500px) {
-      #login button { padding: 18px 50px; font-size: 20px; min-width: 260px; }
-    }
   </style>
 </head>
 <body>
@@ -162,12 +159,12 @@
 
   <div id="sendBox">
     <input id="msg" placeholder="Nachricht schreiben...">
-    <label for="camera" class="camera-btn" title="Foto machen">📸</label>
+    <label for="camera" class="btn" title="Foto machen">📸</label>
     <input type="file" id="camera" accept="image/*" capture="environment">
-    <label for="file" class="file-btn" title="Bild aus Galerie">📎</label>
+    <label for="file" class="btn" title="Bild aus Galerie">📎</label>
     <input type="file" id="file" accept="image/*">
     <img id="preview" alt="Vorschau">
-    <button class="send-btn" onclick="sendMessage()">➤</button>
+    <button class="btn" onclick="sendMessage()">➤</button>
   </div>
 </div>
 
@@ -205,33 +202,19 @@ function toggleTheme() {
 }
 if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
 
-// ── Google Login mit starkem Fallback für iOS/Safari ────────────────────
+// ── Login (Popup + Redirect für iOS/Safari) ────────────────────────────
 function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  
-  // Erst Popup versuchen (Desktop gut)
-  auth.signInWithPopup(provider)
-    .catch(err => {
-      if (err.code === 'auth/popup-blocked' || 
-          err.code === 'auth/popup-closed-by-user' || 
-          err.message.includes('popup') || 
-          /safari|iphone|ipad/i.test(navigator.userAgent)) {
-        // Auf Mobile/iOS/Safari → sofort Redirect
-        auth.signInWithRedirect(provider);
-      } else {
-        alert("Login-Fehler: " + err.message + " (Code: " + err.code + ")");
-      }
-    });
+  auth.signInWithPopup(provider).catch(err => {
+    if (err.code?.includes('popup') || /safari|iphone|ipad/i.test(navigator.userAgent)) {
+      auth.signInWithRedirect(provider);
+    } else {
+      alert("Login-Fehler: " + err.message);
+    }
+  });
 }
 
-// Redirect-Result abfangen (wichtig nach Redirect!)
-auth.getRedirectResult()
-  .then(result => {
-    if (result?.user) console.log("Erfolgreich via Redirect eingeloggt");
-  })
-  .catch(err => {
-    console.error("Redirect Fehler:", err);
-  });
+auth.getRedirectResult().catch(err => console.error("Redirect Fehler:", err));
 
 // ── Auth Listener ───────────────────────────────────────────────────────
 auth.onAuthStateChanged(async u => {
@@ -258,12 +241,16 @@ auth.onAuthStateChanged(async u => {
 async function saveUsername() {
   const name = document.getElementById("usernameInput").value.trim();
   if (name.length < 2) return alert("Mind. 2 Zeichen");
-  await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
-  location.reload();
+  try {
+    await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
+    location.reload();
+  } catch (e) {
+    alert("Username speichern fehlgeschlagen: " + e.message);
+  }
 }
 
-// ── Bild aus Galerie oder Kamera ────────────────────────────────────────
-function handleImageSelect(e) {
+// ── Bild-Handling (Galerie + Kamera) ────────────────────────────────────
+function handleImage(e) {
   selectedFile = e.target.files[0];
   if (!selectedFile?.type.startsWith("image/")) {
     alert("Nur Bilder erlaubt");
@@ -278,10 +265,10 @@ function handleImageSelect(e) {
   reader.readAsDataURL(selectedFile);
 }
 
-fileInput.onchange   = handleImageSelect;
-cameraInput.onchange = handleImageSelect;
+fileInput.onchange = handleImage;
+cameraInput.onchange = handleImage;
 
-// ── Senden ──────────────────────────────────────────────────────────────
+// ── Senden mit Bucket-Force ─────────────────────────────────────────────
 async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text && !selectedFile) return;
@@ -289,14 +276,18 @@ async function sendMessage() {
   let imageUrl = null;
   if (selectedFile) {
     try {
-      const ext = selectedFile.name.split('.').pop() || 'jpg';
+      const ext = selectedFile.name.split('.').pop().toLowerCase() || "jpg";
       const path = `chat-images/${user.uid}/${Date.now()}.${ext}`;
-      const ref = storage.ref(path);
+      
+      // Force neuen Bucket (wichtig seit 2024!)
+      const bucket = "enzae-4134d.firebasestorage.app";
+      const ref = firebase.storage().refFromURL(`gs://${bucket}/${path}`);
+      
       await ref.put(selectedFile);
       imageUrl = await ref.getDownloadURL();
     } catch (err) {
-      alert("Bild-Upload fehlgeschlagen:\n" + err.message);
-      console.error(err);
+      console.error("Upload Fehler:", err);
+      alert("Bild-Upload fehlgeschlagen:\n" + err.message + "\n\nCode: " + (err.code || "unbekannt"));
       return;
     }
   }
@@ -345,9 +336,9 @@ function loadMessages() {
     });
 }
 
-// Mobile Tastatur-Fix
+// iOS Tastatur-Fix
 window.visualViewport?.addEventListener('resize', () => {
-  document.body.style.height = window.visualViewport.height + 'px';
+  document.body.style.height = `${window.visualViewport.height}px`;
 });
 </script>
 </body>
