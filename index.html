@@ -15,12 +15,12 @@
       --msg-own: #1e88e5;
       --msg-other: #2d2d2d;
       --input: #1a1a1a;
-      --border: #333;
+      --border: #444;
       --accent: #2196f3;
     }
     body.light {
       --bg: #f5f5f7;
-      --text: #1d1d1f;
+      --text: #111;
       --msg-own: #007aff;
       --msg-other: #e5e5ea;
       --input: #ffffff;
@@ -41,25 +41,26 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 20px;
-      gap: 24px;
+      padding: 30px;
+      gap: 32px;
     }
-    button {
-      padding: 16px 40px;
-      font-size: 18px;
-      border-radius: 12px;
+    #login button {
+      padding: 20px 60px;
+      font-size: 22px;
+      border-radius: 16px;
       background: var(--accent);
       color: white;
       border: none;
-      min-width: 220px;
+      min-width: 280px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       cursor: pointer;
     }
-    input[type="text"] {
+    #usernameBox input {
       width: 100%;
-      max-width: 360px;
-      padding: 16px;
-      font-size: 17px;
-      border-radius: 12px;
+      max-width: 400px;
+      padding: 18px;
+      font-size: 18px;
+      border-radius: 16px;
       border: 1px solid var(--border);
       background: var(--input);
       color: var(--text);
@@ -70,73 +71,72 @@
       flex-direction: column;
     }
     header {
-      padding: 12px 16px;
+      padding: 14px 18px;
       background: var(--input);
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 600;
     }
     #chat {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 18px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 4px;
     }
     .msg {
-      max-width: 78%;
-      padding: 10px 14px;
-      border-radius: 18px;
-      font-size: 15.5px;
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 20px;
+      font-size: 16px;
       line-height: 1.4;
-      word-break: break-word;
     }
     .msg.own   { background: var(--msg-own);   color: white; align-self: flex-end; }
     .msg.other { background: var(--msg-other); color: var(--text); align-self: flex-start; }
-    .msg img   { max-width: 240px; border-radius: 12px; margin-top: 6px; display: block; }
-    .time      { font-size: 11px; opacity: 0.65; margin-top: 3px; text-align: right; }
+    .msg img   { max-width: 260px; border-radius: 14px; margin-top: 6px; display: block; }
+    .time      { font-size: 12px; opacity: 0.7; margin-top: 4px; text-align: right; }
     #sendBox {
       position: sticky;
       bottom: 0;
       background: var(--input);
       border-top: 1px solid var(--border);
-      padding: 10px 12px;
+      padding: 12px 14px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      z-index: 10;
+      gap: 10px;
+      z-index: 100;
     }
     #msg {
       flex: 1;
-      padding: 12px 16px;
-      font-size: 16px;
-      border-radius: 24px;
+      padding: 14px 18px;
+      font-size: 17px;
+      border-radius: 28px;
       border: 1px solid var(--border);
       background: var(--bg);
       color: var(--text);
-      min-height: 44px;
+      min-height: 48px;
     }
-    label[for="file"], button:not(header button) {
-      width: 44px;
-      height: 44px;
+    .send-btn, label.camera-btn, label.file-btn {
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       background: var(--border);
       color: var(--text);
-      font-size: 20px;
+      font-size: 22px;
       border: none;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
     }
-    #file { display: none; }
-    #preview { max-height: 80px; border-radius: 10px; display: none; margin: 0 8px; }
-    @media (max-width: 400px) {
-      button, label[for="file"] { width: 42px; height: 42px; font-size: 18px; }
+    #file, #camera { display: none; }
+    #preview { max-height: 90px; border-radius: 12px; display: none; margin: 0 10px; }
+    @media (max-width: 500px) {
+      #login button { padding: 18px 50px; font-size: 20px; min-width: 260px; }
     }
   </style>
 </head>
@@ -148,7 +148,7 @@
 
 <div id="usernameBox" style="display:none">
   <h3>Username wählen</h3>
-  <input id="usernameInput" placeholder="Dein Name..." autocomplete="off">
+  <input id="usernameInput" placeholder="Dein cooler Name..." autocomplete="off">
   <button onclick="saveUsername()">Speichern</button>
 </div>
 
@@ -161,11 +161,13 @@
   <div id="chat"></div>
 
   <div id="sendBox">
-    <input id="msg" placeholder="Nachricht...">
-    <label for="file" title="Bild auswählen">📎</label>
+    <input id="msg" placeholder="Nachricht schreiben...">
+    <label for="camera" class="camera-btn" title="Foto machen">📸</label>
+    <input type="file" id="camera" accept="image/*" capture="environment">
+    <label for="file" class="file-btn" title="Bild aus Galerie">📎</label>
     <input type="file" id="file" accept="image/*">
     <img id="preview" alt="Vorschau">
-    <button onclick="sendMessage()">➤</button>
+    <button class="send-btn" onclick="sendMessage()">➤</button>
   </div>
 </div>
 
@@ -187,105 +189,83 @@ const storage = firebase.storage();
 
 let user, username, selectedFile = null;
 
-const appDiv       = document.getElementById("app");
-const loginDiv     = document.getElementById("login");
-const usernameDiv  = document.getElementById("usernameBox");
-const chatDiv      = document.getElementById("chat");
-const msgInput     = document.getElementById("msg");
-const fileInput    = document.getElementById("file");
-const previewImg   = document.getElementById("preview");
+const appDiv      = document.getElementById("app");
+const loginDiv    = document.getElementById("login");
+const usernameDiv = document.getElementById("usernameBox");
+const chatDiv     = document.getElementById("chat");
+const msgInput    = document.getElementById("msg");
+const fileInput   = document.getElementById("file");
+const cameraInput = document.getElementById("camera");
+const previewImg  = document.getElementById("preview");
 
-// ── Theme Toggle ────────────────────────────────────────────────────────
+// ── Theme ───────────────────────────────────────────────────────────────
 function toggleTheme() {
   document.body.classList.toggle("light");
   localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
-  updateThemeIcon();
 }
-function updateThemeIcon() {
-  document.querySelector("header button").textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
-}
-if (localStorage.getItem("theme") === "light") {
-  document.body.classList.add("light");
-}
-updateThemeIcon();
+if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
 
-// ── Google Login mit Popup + Redirect Fallback ──────────────────────────
+// ── Google Login mit starkem Fallback für iOS/Safari ────────────────────
 function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   
+  // Erst Popup versuchen (Desktop gut)
   auth.signInWithPopup(provider)
-    .then(result => {
-      console.log("Login erfolgreich (Popup):", result.user.displayName);
-    })
-    .catch(error => {
-      console.error("Popup Fehler:", error.code, error.message);
-      
-      if (error.code === 'auth/popup-blocked' ||
-          error.code === 'auth/popup-closed-by-user' ||
-          error.message.includes('popup')) {
-        console.log("Popup blockiert → Wechsel zu Redirect");
+    .catch(err => {
+      if (err.code === 'auth/popup-blocked' || 
+          err.code === 'auth/popup-closed-by-user' || 
+          err.message.includes('popup') || 
+          /safari|iphone|ipad/i.test(navigator.userAgent)) {
+        // Auf Mobile/iOS/Safari → sofort Redirect
         auth.signInWithRedirect(provider);
       } else {
-        alert("Login-Fehler:\n" + error.message + "\n\nCode: " + error.code);
+        alert("Login-Fehler: " + err.message + " (Code: " + err.code + ")");
       }
     });
 }
 
-// Redirect-Result abfangen (nach Redirect zurück)
+// Redirect-Result abfangen (wichtig nach Redirect!)
 auth.getRedirectResult()
   .then(result => {
-    if (result.user) {
-      console.log("Login erfolgreich (Redirect):", result.user.displayName);
-    }
+    if (result?.user) console.log("Erfolgreich via Redirect eingeloggt");
   })
-  .catch(error => {
-    console.error("Redirect Fehler:", error);
-    alert("Redirect-Fehler: " + error.message);
+  .catch(err => {
+    console.error("Redirect Fehler:", err);
   });
 
-// ── Auth State Listener ─────────────────────────────────────────────────
+// ── Auth Listener ───────────────────────────────────────────────────────
 auth.onAuthStateChanged(async u => {
   if (!u) {
     loginDiv.style.display = "flex";
     appDiv.style.display = usernameDiv.style.display = "none";
     return;
   }
-
   user = u;
   loginDiv.style.display = "none";
 
-  try {
-    const doc = await db.collection("users").doc(u.uid).get();
-    if (!doc.exists || !doc.data().username) {
-      usernameDiv.style.display = "flex";
-      appDiv.style.display = "none";
-      return;
-    }
-    username = doc.data().username;
-    usernameDiv.style.display = "none";
-    appDiv.style.display = "flex";
-    loadMessages();
-  } catch (err) {
-    console.error("User-Daten laden fehlgeschlagen:", err);
-    alert("Fehler beim Laden deiner Daten.");
+  const doc = await db.collection("users").doc(u.uid).get().catch(() => null);
+  if (!doc?.exists || !doc.data()?.username) {
+    usernameDiv.style.display = "flex";
+    appDiv.style.display = "none";
+    return;
   }
+  username = doc.data().username;
+  usernameDiv.style.display = "none";
+  appDiv.style.display = "flex";
+  loadMessages();
 });
 
 async function saveUsername() {
   const name = document.getElementById("usernameInput").value.trim();
-  if (name.length < 2) return alert("Mindestens 2 Zeichen");
-  try {
-    await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
-    location.reload();
-  } catch (e) {
-    alert("Username speichern fehlgeschlagen: " + e.message);
-  }
+  if (name.length < 2) return alert("Mind. 2 Zeichen");
+  await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
+  location.reload();
 }
 
-// ── Bild-Vorschau ───────────────────────────────────────────────────────
-fileInput.onchange = e => {
+// ── Bild aus Galerie oder Kamera ────────────────────────────────────────
+function handleImageSelect(e) {
   selectedFile = e.target.files[0];
-  if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+  if (!selectedFile?.type.startsWith("image/")) {
     alert("Nur Bilder erlaubt");
     selectedFile = null;
     return;
@@ -296,25 +276,27 @@ fileInput.onchange = e => {
     previewImg.style.display = "block";
   };
   reader.readAsDataURL(selectedFile);
-};
+}
 
-// ── Nachricht senden ────────────────────────────────────────────────────
+fileInput.onchange   = handleImageSelect;
+cameraInput.onchange = handleImageSelect;
+
+// ── Senden ──────────────────────────────────────────────────────────────
 async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text && !selectedFile) return;
 
   let imageUrl = null;
-
   if (selectedFile) {
     try {
-      const ext = selectedFile.name.split('.').pop().toLowerCase() || "jpg";
+      const ext = selectedFile.name.split('.').pop() || 'jpg';
       const path = `chat-images/${user.uid}/${Date.now()}.${ext}`;
       const ref = storage.ref(path);
       await ref.put(selectedFile);
       imageUrl = await ref.getDownloadURL();
     } catch (err) {
-      console.error("Upload Fehler:", err);
-      alert("Bild hochladen fehlgeschlagen:\n" + err.message);
+      alert("Bild-Upload fehlgeschlagen:\n" + err.message);
+      console.error(err);
       return;
     }
   }
@@ -322,21 +304,22 @@ async function sendMessage() {
   try {
     await db.collection("messages").add({
       text: text || "",
-      imageUrl: imageUrl || null,
+      imageUrl,
       user: username,
       uid: user.uid,
       time: firebase.firestore.FieldValue.serverTimestamp()
     });
     msgInput.value = "";
     fileInput.value = "";
+    cameraInput.value = "";
     selectedFile = null;
     previewImg.style.display = "none";
   } catch (err) {
-    alert("Nachricht senden fehlgeschlagen: " + err.message);
+    alert("Senden fehlgeschlagen: " + err.message);
   }
 }
 
-// ── Nachrichten laden ───────────────────────────────────────────────────
+// ── Messages laden ──────────────────────────────────────────────────────
 function loadMessages() {
   db.collection("messages")
     .orderBy("time")
@@ -345,33 +328,26 @@ function loadMessages() {
       snap.forEach(doc => {
         const m = doc.data();
         const isOwn = m.uid === user?.uid;
-
         const div = document.createElement("div");
         div.className = `msg ${isOwn ? "own" : "other"}`;
 
-        let html = `<strong>${m.user || "Unbekannt"}</strong>`;
+        let html = `<strong>${m.user}</strong>`;
         if (m.text) html += `<div>${m.text}</div>`;
         if (m.imageUrl) html += `<img src="${m.imageUrl}" alt="Bild">`;
-
         if (m.time) {
-          const date = m.time.toDate ? m.time.toDate() : new Date(m.time);
-          const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-          html += `<div class="time">${timeStr}</div>`;
+          const t = m.time.toDate ? m.time.toDate() : new Date(m.time);
+          html += `<div class="time">${t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>`;
         }
-
         div.innerHTML = html;
         chatDiv.appendChild(div);
       });
       chatDiv.scrollTop = chatDiv.scrollHeight;
-    }, err => {
-      console.error("Snapshot Fehler:", err);
-      chatDiv.innerHTML += `<div style="color:#ff5555">Fehler beim Laden: ${err.message}</div>`;
     });
 }
 
-// Optional: Besserer Mobile-Viewport bei Tastatur (iOS/Android)
+// Mobile Tastatur-Fix
 window.visualViewport?.addEventListener('resize', () => {
-  document.body.style.height = `${window.visualViewport.height}px`;
+  document.body.style.height = window.visualViewport.height + 'px';
 });
 </script>
 </body>
