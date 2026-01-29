@@ -9,21 +9,135 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <style>
-    /* Dein bisheriges CSS – ich lasse es kurz, damit es übersichtlich bleibt */
-    body { margin:0; font-family:sans-serif; background:#111; color:#eee; height:100dvh; overflow:hidden; }
-    #login, #usernameBox { height:100dvh; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:24px; padding:20px; }
-    button { padding:16px 40px; font-size:18px; border-radius:12px; background:#0066ff; color:white; border:none; min-width:220px; cursor:pointer; }
-    #app { height:100dvh; display:none; flex-direction:column; }
-    header { padding:12px 16px; background:#1a1a1a; display:flex; justify-content:space-between; align-items:center; }
-    #chat { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:4px; }
-    .msg { max-width:78%; padding:10px 14px; border-radius:18px; }
-    .msg.own   { background:#1e88e5; color:white; align-self:flex-end; }
-    .msg.other { background:#2d2d2d; align-self:flex-start; }
-    #sendBox { position:sticky; bottom:0; background:#1a1a1a; border-top:1px solid #333; padding:10px; display:flex; align-items:center; gap:8px; z-index:10; }
-    #msg { flex:1; padding:12px 16px; border-radius:24px; border:1px solid #444; background:#111; color:#eee; font-size:16px; }
-    label[for="file"], button { width:44px; height:44px; border-radius:50%; background:#444; color:#eee; font-size:20px; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer; }
-    #file { display:none; }
-    #preview { max-height:80px; border-radius:10px; display:none; }
+    :root {
+      --bg: #0f0f0f;
+      --text: #e0e0e0;
+      --msg-own: #1e88e5;
+      --msg-other: #2d2d2d;
+      --input: #1a1a1a;
+      --border: #333;
+      --accent: #2196f3;
+    }
+    body.light {
+      --bg: #f5f5f7;
+      --text: #1d1d1f;
+      --msg-own: #007aff;
+      --msg-other: #e5e5ea;
+      --input: #ffffff;
+      --border: #c7c7cc;
+      --accent: #007aff;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      overflow: hidden;
+    }
+    #login, #usernameBox {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      gap: 24px;
+    }
+    button {
+      padding: 16px 40px;
+      font-size: 18px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      min-width: 220px;
+      cursor: pointer;
+    }
+    input[type="text"] {
+      width: 100%;
+      max-width: 360px;
+      padding: 16px;
+      font-size: 17px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--input);
+      color: var(--text);
+    }
+    #app {
+      height: 100dvh;
+      display: none;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 16px;
+      background: var(--input);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .msg {
+      max-width: 78%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 15.5px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .msg.own   { background: var(--msg-own);   color: white; align-self: flex-end; }
+    .msg.other { background: var(--msg-other); color: var(--text); align-self: flex-start; }
+    .msg img   { max-width: 240px; border-radius: 12px; margin-top: 6px; display: block; }
+    .time      { font-size: 11px; opacity: 0.65; margin-top: 3px; text-align: right; }
+    #sendBox {
+      position: sticky;
+      bottom: 0;
+      background: var(--input);
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+    }
+    #msg {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 16px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 44px;
+    }
+    label[for="file"], button:not(header button) {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--border);
+      color: var(--text);
+      font-size: 20px;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    #file { display: none; }
+    #preview { max-height: 80px; border-radius: 10px; display: none; margin: 0 8px; }
+    @media (max-width: 400px) {
+      button, label[for="file"] { width: 42px; height: 42px; font-size: 18px; }
+    }
   </style>
 </head>
 <body>
@@ -34,7 +148,7 @@
 
 <div id="usernameBox" style="display:none">
   <h3>Username wählen</h3>
-  <input id="usernameInput" placeholder="Dein Name..." style="padding:16px; font-size:17px; width:90%; max-width:360px; border-radius:12px; border:1px solid #444; background:#222; color:#eee;">
+  <input id="usernameInput" placeholder="Dein Name..." autocomplete="off">
   <button onclick="saveUsername()">Speichern</button>
 </div>
 
@@ -43,10 +157,12 @@
     <div>Enzae Chat</div>
     <button onclick="toggleTheme()">🌙</button>
   </header>
+
   <div id="chat"></div>
+
   <div id="sendBox">
     <input id="msg" placeholder="Nachricht...">
-    <label for="file">📎</label>
+    <label for="file" title="Bild auswählen">📎</label>
     <input type="file" id="file" accept="image/*">
     <img id="preview" alt="Vorschau">
     <button onclick="sendMessage()">➤</button>
@@ -54,7 +170,7 @@
 </div>
 
 <script>
-// ── WICHTIG: Deine Firebase Config ────────────────────────────────
+// ── Firebase Config ─────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyDfXuvBTQryCnIiNaMZ2goX5zsVc_tSZP4",
   authDomain: "enzae-4134d.firebaseapp.com",
@@ -71,40 +187,55 @@ const storage = firebase.storage();
 
 let user, username, selectedFile = null;
 
-// ── Theme (Dark/Light) ─────────────────────────────────────────────
-function toggleTheme() {
-  document.body.classList.toggle('light');
-  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
-}
-if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+const appDiv       = document.getElementById("app");
+const loginDiv     = document.getElementById("login");
+const usernameDiv  = document.getElementById("usernameBox");
+const chatDiv      = document.getElementById("chat");
+const msgInput     = document.getElementById("msg");
+const fileInput    = document.getElementById("file");
+const previewImg   = document.getElementById("preview");
 
-// ── Login mit Fallback ─────────────────────────────────────────────
+// ── Theme Toggle ────────────────────────────────────────────────────────
+function toggleTheme() {
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+  updateThemeIcon();
+}
+function updateThemeIcon() {
+  document.querySelector("header button").textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
+}
+if (localStorage.getItem("theme") === "light") {
+  document.body.classList.add("light");
+}
+updateThemeIcon();
+
+// ── Google Login mit Popup + Redirect Fallback ──────────────────────────
 function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   
   auth.signInWithPopup(provider)
     .then(result => {
-      console.log("Popup erfolgreich:", result.user);
+      console.log("Login erfolgreich (Popup):", result.user.displayName);
     })
     .catch(error => {
       console.error("Popup Fehler:", error.code, error.message);
       
-      if (error.code === 'auth/popup-blocked' || 
-          error.code === 'auth/popup-closed-by-user' || 
-          error.code.includes('popup')) {
-        alert("Popup wurde blockiert oder geschlossen. Versuche Redirect-Login...");
-        auth.signInWithRedirect(provider);  // Fallback auf Redirect
+      if (error.code === 'auth/popup-blocked' ||
+          error.code === 'auth/popup-closed-by-user' ||
+          error.message.includes('popup')) {
+        console.log("Popup blockiert → Wechsel zu Redirect");
+        auth.signInWithRedirect(provider);
       } else {
-        alert("Login-Fehler: " + error.message + "\n\nCode: " + error.code);
+        alert("Login-Fehler:\n" + error.message + "\n\nCode: " + error.code);
       }
     });
 }
 
-// Redirect-Result abfangen (nach Redirect zurückkommen)
+// Redirect-Result abfangen (nach Redirect zurück)
 auth.getRedirectResult()
   .then(result => {
     if (result.user) {
-      console.log("Redirect Login erfolgreich:", result.user);
+      console.log("Login erfolgreich (Redirect):", result.user.displayName);
     }
   })
   .catch(error => {
@@ -112,15 +243,136 @@ auth.getRedirectResult()
     alert("Redirect-Fehler: " + error.message);
   });
 
-// Rest deines Codes (onAuthStateChanged, saveUsername, sendMessage, loadMessages, file handling)
-// ... füge den Rest aus deiner vorherigen Version ein ...
-
-// Beispiel: onAuthStateChanged (kopiere deinen vollständigen Code hier rein)
+// ── Auth State Listener ─────────────────────────────────────────────────
 auth.onAuthStateChanged(async u => {
-  // dein bisheriger Code ...
+  if (!u) {
+    loginDiv.style.display = "flex";
+    appDiv.style.display = usernameDiv.style.display = "none";
+    return;
+  }
+
+  user = u;
+  loginDiv.style.display = "none";
+
+  try {
+    const doc = await db.collection("users").doc(u.uid).get();
+    if (!doc.exists || !doc.data().username) {
+      usernameDiv.style.display = "flex";
+      appDiv.style.display = "none";
+      return;
+    }
+    username = doc.data().username;
+    usernameDiv.style.display = "none";
+    appDiv.style.display = "flex";
+    loadMessages();
+  } catch (err) {
+    console.error("User-Daten laden fehlgeschlagen:", err);
+    alert("Fehler beim Laden deiner Daten.");
+  }
 });
 
-// ... usw.
+async function saveUsername() {
+  const name = document.getElementById("usernameInput").value.trim();
+  if (name.length < 2) return alert("Mindestens 2 Zeichen");
+  try {
+    await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
+    location.reload();
+  } catch (e) {
+    alert("Username speichern fehlgeschlagen: " + e.message);
+  }
+}
+
+// ── Bild-Vorschau ───────────────────────────────────────────────────────
+fileInput.onchange = e => {
+  selectedFile = e.target.files[0];
+  if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+    alert("Nur Bilder erlaubt");
+    selectedFile = null;
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    previewImg.src = ev.target.result;
+    previewImg.style.display = "block";
+  };
+  reader.readAsDataURL(selectedFile);
+};
+
+// ── Nachricht senden ────────────────────────────────────────────────────
+async function sendMessage() {
+  const text = msgInput.value.trim();
+  if (!text && !selectedFile) return;
+
+  let imageUrl = null;
+
+  if (selectedFile) {
+    try {
+      const ext = selectedFile.name.split('.').pop().toLowerCase() || "jpg";
+      const path = `chat-images/${user.uid}/${Date.now()}.${ext}`;
+      const ref = storage.ref(path);
+      await ref.put(selectedFile);
+      imageUrl = await ref.getDownloadURL();
+    } catch (err) {
+      console.error("Upload Fehler:", err);
+      alert("Bild hochladen fehlgeschlagen:\n" + err.message);
+      return;
+    }
+  }
+
+  try {
+    await db.collection("messages").add({
+      text: text || "",
+      imageUrl: imageUrl || null,
+      user: username,
+      uid: user.uid,
+      time: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    msgInput.value = "";
+    fileInput.value = "";
+    selectedFile = null;
+    previewImg.style.display = "none";
+  } catch (err) {
+    alert("Nachricht senden fehlgeschlagen: " + err.message);
+  }
+}
+
+// ── Nachrichten laden ───────────────────────────────────────────────────
+function loadMessages() {
+  db.collection("messages")
+    .orderBy("time")
+    .onSnapshot(snap => {
+      chatDiv.innerHTML = "";
+      snap.forEach(doc => {
+        const m = doc.data();
+        const isOwn = m.uid === user?.uid;
+
+        const div = document.createElement("div");
+        div.className = `msg ${isOwn ? "own" : "other"}`;
+
+        let html = `<strong>${m.user || "Unbekannt"}</strong>`;
+        if (m.text) html += `<div>${m.text}</div>`;
+        if (m.imageUrl) html += `<img src="${m.imageUrl}" alt="Bild">`;
+
+        if (m.time) {
+          const date = m.time.toDate ? m.time.toDate() : new Date(m.time);
+          const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          html += `<div class="time">${timeStr}</div>`;
+        }
+
+        div.innerHTML = html;
+        chatDiv.appendChild(div);
+      });
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }, err => {
+      console.error("Snapshot Fehler:", err);
+      chatDiv.innerHTML += `<div style="color:#ff5555">Fehler beim Laden: ${err.message}</div>`;
+    });
+}
+
+// Optional: Besserer Mobile-Viewport bei Tastatur (iOS/Android)
+window.visualViewport?.addEventListener('resize', () => {
+  document.body.style.height = `${window.visualViewport.height}px`;
+});
 </script>
 </body>
 </html>
