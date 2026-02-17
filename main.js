@@ -1,120 +1,106 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, get }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// 🔥 DEINE CONFIG HIER
 const firebaseConfig = {
-  apiKey: "AIzaSyALbCmk9pVv5WUc1w9Zf9fSHshjhEc7UOw",
-  authDomain: "sudoku-multiplayer-18534.firebaseapp.com",
-  databaseURL: "https://sudoku-multiplayer-18534-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "sudoku-multiplayer-18534",
-  storageBucket: "sudoku-multiplayer-18534.firebasestorage.app",
-  messagingSenderId: "401519012394",
-  appId: "1:401519012394:web:41470fa60f037bd73c7153"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_AUTH",
+  projectId: "DEIN_PROJECT_ID",
+  storageBucket: "DEIN_BUCKET",
+  messagingSenderId: "DEIN_ID",
+  appId: "DEINE_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db = getFirestore(app);
 
-const roomId = "room1";
-const roomRef = ref(db, "rooms/" + roomId);
+const boardRef = doc(db, "boards", "main");
 
-// ✅ KOMPLETTE LÖSUNG
-const solution = [
-5,3,4,6,7,8,9,1,2,
-6,7,2,1,9,5,3,4,8,
-1,9,8,3,4,2,5,6,7,
-8,5,9,7,6,1,4,2,3,
-4,2,6,8,5,3,7,9,1,
-7,1,3,9,2,4,8,5,6,
-9,6,1,5,3,7,2,8,4,
-2,8,7,4,1,9,6,3,5,
-3,4,5,2,8,6,1,7,9
-];
+const sudoku = document.getElementById("sudoku");
+let currentGrid = {};
+let originalGrid = {};
 
-// ✅ FESTE VORGEGEBENE ZAHLEN (lösbar!)
-const puzzle = [
-5,3,0,0,7,0,0,0,0,
-6,0,0,1,9,5,0,0,0,
-0,9,8,0,0,0,0,6,0,
-8,0,0,0,6,0,0,0,3,
-4,0,0,8,0,3,0,0,1,
-7,0,0,0,2,0,0,0,6,
-0,6,0,0,0,0,2,8,0,
-0,0,0,4,1,9,0,0,5,
-0,0,0,0,8,0,0,7,9
-];
+// Grid erstellen
+function createGrid() {
+  sudoku.innerHTML = "";
 
-async function initGame() {
-  const snapshot = await get(roomRef);
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 9; col++) {
 
-  if (!snapshot.exists()) {
-    await set(roomRef, {
-      board: puzzle
-    });
+      const input = document.createElement("input");
+      input.id = `cell-${row}-${col}`;
+      input.maxLength = 1;
+
+      input.addEventListener("input", (e) => {
+        const value = e.target.value;
+
+        if (value < 1 || value > 9) {
+          e.target.value = "";
+          return;
+        }
+
+        updateCell(row, col, value);
+      });
+
+      sudoku.appendChild(input);
+    }
   }
 }
 
-initGame();
+createGrid();
 
-const container = document.getElementById("sudoku");
-let inputs = [];
 
-// 🧩 GRID
-for (let i = 0; i < 81; i++) {
-  const input = document.createElement("input");
-  input.maxLength = 1;
-
-  if (puzzle[i] !== 0) {
-    input.value = puzzle[i];
-    input.disabled = true;
-    input.classList.add("given");
+// 🔄 LIVE FIRESTORE LISTENER
+onSnapshot(boardRef, (docSnap) => {
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    currentGrid = data.grid;
+    originalGrid = JSON.parse(JSON.stringify(data.grid));
+    renderGrid();
   }
+});
 
-  input.addEventListener("input", (e) => {
-    const value = e.target.value.replace(/[^1-9]/g, "");
-    e.target.value = value;
 
-    update(ref(db, "rooms/" + roomId + "/board"), {
-      [i]: value ? parseInt(value) : 0
-    });
-  });
+function renderGrid() {
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 9; col++) {
 
-  inputs.push(input);
-  container.appendChild(input);
+      const input = document.getElementById(`cell-${row}-${col}`);
+      const value = currentGrid[`row${row}`][col];
+
+      input.value = value === 0 ? "" : value;
+
+      if (originalGrid[`row${row}`][col] !== 0) {
+        input.disabled = true;
+      } else {
+        input.disabled = false;
+      }
+    }
+  }
 }
 
-// 🔄 LIVE UPDATE
-onValue(ref(db, "rooms/" + roomId + "/board"), (snapshot) => {
-  const data = snapshot.val();
-  if (!data) return;
 
-  const board = data;
-
-  board.forEach((val, i) => {
-    if (!inputs[i].disabled) {
-      inputs[i].value = val === 0 ? "" : val;
-    }
+// 🔥 Zelle updaten
+async function updateCell(row, col, value) {
+  await updateDoc(boardRef, {
+    [`grid.row${row}.${col}`]: Number(value)
   });
-});
+}
 
-// ✅ FERTIG BUTTON
-document.getElementById("finishBtn").addEventListener("click", async () => {
 
-  const snapshot = await get(ref(db, "rooms/" + roomId + "/board"));
-  const board = snapshot.val();
+// ✅ Sudoku prüfen
+window.checkSudoku = function() {
 
-  let correct = true;
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 9; col++) {
+      const value = document.getElementById(`cell-${row}-${col}`).value;
 
-  for (let i = 0; i < 81; i++) {
-    if (board[i] !== solution[i]) {
-      correct = false;
-      break;
+      if (!value || value < 1 || value > 9) {
+        document.getElementById("result").innerText = "❌ Nicht richtig!";
+        return;
+      }
     }
   }
 
-  if (correct) {
-    document.getElementById("status").innerText = "✅ Richtig gelöst!";
-  } else {
-    document.getElementById("status").innerText = "❌ Das ist noch nicht korrekt!";
-  }
-});
+  document.getElementById("result").innerText = "✅ Richtig!";
+};
