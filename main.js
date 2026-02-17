@@ -1,14 +1,15 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// 🔥 DEINE CONFIG HIER
+// 🔥 DEINE FIREBASE SETTINGS
 const firebaseConfig = {
-  apiKey: "DEIN_API_KEY",
-  authDomain: "DEIN_AUTH",
-  projectId: "DEIN_PROJECT_ID",
-  storageBucket: "DEIN_BUCKET",
-  messagingSenderId: "DEIN_ID",
-  appId: "DEINE_APP_ID"
+  apiKey: "AIzaSyALbCmk9pVv5WUc1w9Zf9fSHshjhEc7UOw",
+  authDomain: "sudoku-multiplayer-18534.firebaseapp.com",
+  projectId: "sudoku-multiplayer-18534",
+  storageBucket: "sudoku-multiplayer-18534.firebasestorage.app",
+  messagingSenderId: "401519012394",
+  appId: "1:401519012394:web:41470fa60f037bd73c7153",
+  measurementId: "G-1B6EV80YYX"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -20,7 +21,7 @@ const sudoku = document.getElementById("sudoku");
 let currentGrid = {};
 let originalGrid = {};
 
-// Grid erstellen
+// 🧱 Grid erstellen
 function createGrid() {
   sudoku.innerHTML = "";
 
@@ -50,7 +51,7 @@ function createGrid() {
 createGrid();
 
 
-// 🔄 LIVE FIRESTORE LISTENER
+// 🔄 Live Listener (Multiplayer)
 onSnapshot(boardRef, (docSnap) => {
   if (docSnap.exists()) {
     const data = docSnap.data();
@@ -71,7 +72,7 @@ function renderGrid() {
       input.value = value === 0 ? "" : value;
 
       if (originalGrid[`row${row}`][col] !== 0) {
-        input.disabled = true;
+        input.disabled = true; // gegebene Zahl
       } else {
         input.disabled = false;
       }
@@ -80,7 +81,7 @@ function renderGrid() {
 }
 
 
-// 🔥 Zelle updaten
+// 🔥 Zelle speichern
 async function updateCell(row, col, value) {
   await updateDoc(boardRef, {
     [`grid.row${row}.${col}`]: Number(value)
@@ -88,11 +89,12 @@ async function updateCell(row, col, value) {
 }
 
 
-// ✅ Sudoku prüfen
+// ✅ Fertig Button Check
 window.checkSudoku = function() {
 
   for (let row = 0; row < 9; row++) {
     for (let col = 0; col < 9; col++) {
+
       const value = document.getElementById(`cell-${row}-${col}`).value;
 
       if (!value || value < 1 || value > 9) {
