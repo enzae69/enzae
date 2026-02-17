@@ -5,53 +5,66 @@
 <title>Sudoku Multiplayer</title>
 
 <style>
-  body {
-    font-family: Arial;
-    text-align: center;
-    background: #f4f4f4;
-  }
+body {
+  font-family: Arial;
+  text-align: center;
+  background: #f4f4f4;
+}
 
-  #sudoku {
-    display: grid;
-    grid-template-columns: repeat(9, 45px);
-    grid-template-rows: repeat(9, 45px);
-    margin: 20px auto;
-    width: max-content;
-  }
+#sudoku {
+  display: grid;
+  grid-template-columns: repeat(9, 50px);
+  grid-template-rows: repeat(9, 50px);
+  margin: 20px auto;
+}
 
-  #sudoku input {
-    width: 45px;
-    height: 45px;
-    text-align: center;
-    font-size: 20px;
-    border: 1px solid #999;
-  }
+#sudoku input {
+  width: 50px;
+  height: 50px;
+  text-align: center;
+  font-size: 22px;
+  border: 1px solid #999;
+  outline: none;
+}
 
-  /* Dicke Linien */
-  #sudoku input:nth-child(3n) {
-    border-right: 3px solid black;
-  }
+/* 3x3 dicke Linien korrekt */
+#sudoku input:nth-child(3n) {
+  border-right: 3px solid black;
+}
 
-  #sudoku input:nth-child(n+19):nth-child(-n+27),
-  #sudoku input:nth-child(n+46):nth-child(-n+54) {
-    border-bottom: 3px solid black;
-  }
+#sudoku input:nth-child(n+19):nth-child(-n+27),
+#sudoku input:nth-child(n+46):nth-child(-n+54) {
+  border-bottom: 3px solid black;
+}
 
-  .given {
-    background: #ddd;
-    font-weight: bold;
-  }
+/* linke & obere dicke Linie */
+#sudoku input:nth-child(9n+1) {
+  border-left: 3px solid black;
+}
 
-  button {
-    padding: 10px 20px;
-    font-size: 16px;
-    margin-top: 20px;
-  }
+#sudoku input:nth-child(-n+9) {
+  border-top: 3px solid black;
+}
 
-  #status {
-    margin-top: 15px;
-    font-size: 18px;
-  }
+/* gegebene Zahlen */
+.given {
+  background: #ddd;
+  font-weight: bold;
+  color: black;
+}
+
+button {
+  padding: 10px 25px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+#status {
+  margin-top: 15px;
+  font-size: 18px;
+  font-weight: bold;
+}
 
 </style>
 </head>
@@ -67,5 +80,6 @@
 <div id="status"></div>
 
 <script type="module" src="main.js"></script>
+
 </body>
 </html>
