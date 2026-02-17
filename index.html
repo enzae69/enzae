@@ -16,6 +16,7 @@ body {
   grid-template-columns: repeat(9, 50px);
   grid-template-rows: repeat(9, 50px);
   margin: 20px auto;
+  width: fit-content;
 }
 
 #sudoku input {
@@ -24,40 +25,19 @@ body {
   text-align: center;
   font-size: 22px;
   border: 1px solid #999;
-  outline: none;
+  box-sizing: border-box;
 }
 
-/* 3x3 dicke Linien korrekt */
-#sudoku input:nth-child(3n) {
-  border-right: 3px solid black;
-}
-
-#sudoku input:nth-child(n+19):nth-child(-n+27),
-#sudoku input:nth-child(n+46):nth-child(-n+54) {
-  border-bottom: 3px solid black;
-}
-
-/* linke & obere dicke Linie */
-#sudoku input:nth-child(9n+1) {
-  border-left: 3px solid black;
-}
-
-#sudoku input:nth-child(-n+9) {
-  border-top: 3px solid black;
-}
-
-/* gegebene Zahlen */
 .given {
   background: #ddd;
   font-weight: bold;
-  color: black;
 }
 
 button {
   padding: 10px 25px;
   font-size: 16px;
-  cursor: pointer;
   margin-top: 15px;
+  cursor: pointer;
 }
 
 #status {
