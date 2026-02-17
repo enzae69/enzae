@@ -1,65 +1,20 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Sudoku Multiplayer</title>
-
-<style>
-body {
-  font-family: Arial;
-  text-align: center;
-  background: #f4f4f4;
-}
-
-#sudoku {
-  display: grid;
-  grid-template-columns: repeat(9, 50px);
-  grid-template-rows: repeat(9, 50px);
-  margin: 20px auto;
-  width: fit-content;
-}
-
-#sudoku input {
-  width: 50px;
-  height: 50px;
-  text-align: center;
-  font-size: 22px;
-  border: 1px solid #999;
-  box-sizing: border-box;
-}
-
-.given {
-  background: #ddd;
-  font-weight: bold;
-}
-
-button {
-  padding: 10px 25px;
-  font-size: 16px;
-  margin-top: 15px;
-  cursor: pointer;
-}
-
-#status {
-  margin-top: 15px;
-  font-size: 18px;
-  font-weight: bold;
-}
-
-</style>
+  <meta charset="UTF-8">
+  <title>Sudoku Multiplayer</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<h1>Sudoku Multiplayer 🔥</h1>
+  <h1>Sudoku Multiplayer 🔥</h1>
 
-<div id="sudoku"></div>
+  <div id="sudoku"></div>
 
-<button id="finishBtn">Fertig</button>
+  <button onclick="checkSudoku()">Fertig</button>
 
-<div id="status"></div>
+  <p id="result"></p>
 
-<script type="module" src="main.js"></script>
-
+  <script type="module" src="main.js"></script>
 </body>
 </html>
